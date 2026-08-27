@@ -9,3 +9,6 @@ renv/local/
 renv/staging/
 renv/python/
 renv/sandbox/
+
+# Generated analysis output - keep only the code that produces it
+results/
