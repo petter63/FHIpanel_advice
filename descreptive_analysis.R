@@ -51,6 +51,15 @@ arm_short <- flow$arm |>
   as.character() |>
   str_extract("^V[0-9]+")
 
+# Short description of what each arm actually received.
+arm_descriptions <- c(
+  V1_explanations          = "Advice with explanations",
+  V2_explanations_sentence = "Advice with explanations + one-sentence summary",
+  V3_sentence_only         = "Advice with one-sentence summary only",
+  V4_control               = "Standard advice (control)"
+)
+arm_desc <- str_wrap(arm_descriptions[as.character(flow$arm)], width = 16)
+
 n_arms  <- nrow(flow)
 x_col   <- seq(0, by = 7, length.out = n_arms)
 box_w   <- 2.6
@@ -95,6 +104,12 @@ row_labels <- tibble(
   label = c("Randomisation", "Allocation", "Analysis")
 )
 
+desc_labels <- tibble(
+  x = x_col + box_w / 2 + 0.3,
+  y = 5.25,
+  label = arm_desc
+)
+
 arrows_split <- tibble(
   x = mean(x_col), y = 10 - box_h / 2,
   xend = x_col,     yend = 7 + box_h / 2
@@ -133,6 +148,12 @@ consort_plot <- ggplot() +
     data = row_labels,
     aes(x = x, y = y, label = label),
     fontface = "italic", size = 3.2, hjust = 0
+  ) +
+  geom_text(
+    data = desc_labels,
+    aes(x = x, y = y, label = label),
+    fontface = "italic", size = 2.3, colour = "grey30",
+    hjust = 0, vjust = 0.5, lineheight = 0.9
   ) +
   scale_linetype_manual(values = c(main = "solid", excl = "dashed"), guide = "none") +
   labs(
