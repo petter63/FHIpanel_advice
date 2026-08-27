@@ -49,9 +49,10 @@ sim_likert_directional <- function(n, correct_high, p_correct) {
 participant_id <- sprintf("P%04d", seq_len(n))
 arm <- sample(arms, n, replace = TRUE)
 
-age_group_opts <- c("16-24", "25-34", "35-44", "45-54", "55-64", "65+")
+# Age groups reflect the trial's inclusion criterion (20-66 years old).
+age_group_opts <- c("20-29", "30-39", "40-49", "50-59", "60-66")
 age_group <- sample(age_group_opts, n, replace = TRUE,
-                     prob = c(0.12, 0.18, 0.19, 0.18, 0.16, 0.17))
+                     prob = c(0.19, 0.21, 0.21, 0.21, 0.18))
 
 gender <- sample(c("Female", "Male", "Other"), n, replace = TRUE,
                   prob = c(0.49, 0.49, 0.02))

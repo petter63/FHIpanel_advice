@@ -174,3 +174,130 @@ ggsave(
   consort_plot, width = 9, height = 6.6, dpi = 150, bg = "white"
 )
 
+#-------------------------------------------------------------------------------
+# Table 2: Baseline characteristics and behaviours
+#-------------------------------------------------------------------------------
+library(tidyr)
+library(purrr)
+library(forcats)
+
+# Restrict to the analysed sample (excludes those who failed the attention
+# check), consistent with the "Analysed" count in the CONSORT flow chart.
+analysed <- panel_test |> filter(attention_check_pass)
+
+baseline_vars <- c(
+  "age_group", "gender", "region", "education", "employed", "health_literacy",
+  "baseline_behaviour", "contact_high_risk_patients", "can_work_from_home"
+)
+
+# Replace NA with an explicit "Not applicable" category (e.g. the work-related
+# questions are only asked of those who are employed), so denominators stay clear.
+prep_var <- function(x) {
+  if (is.factor(x)) {
+    fct_na_value_to_level(x, "Not applicable")
+  } else {
+    replace_na(x, "Not applicable")
+  }
+}
+
+summarise_by_arm <- function(data, var) {
+  data |>
+    mutate(level = prep_var(.data[[var]])) |>
+    count(arm, level) |>
+    group_by(arm) |>
+    mutate(pct = 100 * n / sum(n)) |>
+    ungroup() |>
+    mutate(variable = var, cell = sprintf("%d (%.1f%%)", n, pct)) |>
+    select(variable, level, arm, cell)
+}
+
+summarise_total <- function(data, var) {
+  data |>
+    mutate(level = prep_var(.data[[var]])) |>
+    count(level) |>
+    mutate(pct = 100 * n / sum(n)) |>
+    mutate(variable = var, Total = sprintf("%d (%.1f%%)", n, pct)) |>
+    select(variable, level, Total)
+}
+
+by_arm    <- map_dfr(baseline_vars, ~ summarise_by_arm(analysed, .x)) |>
+  pivot_wider(names_from = arm, values_from = cell, values_fill = "0 (0.0%)")
+total_col <- map_dfr(baseline_vars, ~ summarise_total(analysed, .x))
+
+table2 <- by_arm |>
+  left_join(total_col, by = c("variable", "level")) |>
+  arrange(match(variable, baseline_vars), level) |>
+  rename(Characteristic = variable, Level = level)
+
+table2
+
+write_csv(table2, file.path(results_dir, "table2_baseline_characteristics.csv"))
+
+# ---- Publication-ready version (gt) ----
+# Saved as .docx/.rtf so it can be pasted directly into a manuscript, plus
+# .html for quick viewing.
+library(gt)
+
+col_n   <- setNames(flow$n_analysed, as.character(flow$arm))
+total_n <- sum(flow$n_analysed)
+
+table2_gt <- table2 |>
+  gt(groupname_col = "Characteristic", rowname_col = "Level") |>
+  tab_header(
+    title    = "Table 2. Baseline characteristics and behaviours",
+    subtitle = "By study arm, among analysed participants"
+  ) |>
+  cols_label(
+    V1_control              = html(sprintf("V1<br>(n = %d)", col_n["V1_control"])),
+    V2_sentence              = html(sprintf("V2<br>(n = %d)", col_n["V2_sentence"])),
+    V3_definitions           = html(sprintf("V3<br>(n = %d)", col_n["V3_definitions"])),
+    V4_sentence_definitions  = html(sprintf("V4<br>(n = %d)", col_n["V4_sentence_definitions"])),
+    Total                    = html(sprintf("Total<br>(n = %d)", total_n))
+  ) |>
+  tab_spanner(
+    label   = "Study arm, n (%)",
+    columns = c(V1_control, V2_sentence, V3_definitions, V4_sentence_definitions)
+  ) |>
+  tab_style(
+    style     = cell_text(weight = "bold"),
+    locations = cells_row_groups()
+  ) |>
+  tab_style(
+    style     = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) |>
+  tab_style(
+    style     = cell_text(align = "center"),
+    locations = cells_body(columns = c(V1_control, V2_sentence, V3_definitions, V4_sentence_definitions, Total))
+  ) |>
+  tab_style(
+    style     = cell_text(align = "center"),
+    locations = cells_column_labels(columns = c(V1_control, V2_sentence, V3_definitions, V4_sentence_definitions, Total))
+  ) |>
+  cols_align(align = "left", columns = Level) |>
+  tab_footnote(
+    footnote = "V1 = control (current formulation); V2 = added sentence about when it is okay to participate in activities or go to work; V3 = added definitions of key terms; V4 = added sentence and definitions."
+  ) |>
+  tab_footnote(
+    footnote = "Restricted to participants who passed the attention check."
+  ) |>
+  tab_footnote(
+    footnote = "\"Not applicable\" reflects skip-logic (e.g. work-related items asked only of employed participants, or behaviour-specific reasons asked only of participants reporting that behaviour)."
+  ) |>
+  tab_options(
+    table.font.size             = px(12),
+    heading.title.font.size     = px(14),
+    heading.subtitle.font.size  = px(12),
+    column_labels.font.weight   = "bold",
+    table.border.top.style      = "solid",
+    table.border.bottom.style   = "solid"
+  ) |>
+  opt_table_font(font = "Times New Roman")
+
+table2_gt
+
+gtsave(table2_gt, file.path(results_dir, "table2_baseline_characteristics.docx"))
+gtsave(table2_gt, file.path(results_dir, "table2_baseline_characteristics.rtf"))
+gtsave(table2_gt, file.path(results_dir, "table2_baseline_characteristics.html"))
+
+#-------------------------------------------------------------------------------
