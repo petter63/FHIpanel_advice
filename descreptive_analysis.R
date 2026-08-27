@@ -105,8 +105,8 @@ row_labels <- tibble(
 )
 
 desc_labels <- tibble(
-  x = x_col + box_w / 2 + 0.3,
-  y = 5.25,
+  x = x_col,
+  y = 3.5 - box_h / 2 - 1.1,
   label = arm_desc
 )
 
@@ -153,24 +153,24 @@ consort_plot <- ggplot() +
     data = desc_labels,
     aes(x = x, y = y, label = label),
     fontface = "italic", size = 2.3, colour = "grey30",
-    hjust = 0, vjust = 0.5, lineheight = 0.9
+    hjust = 0.5, vjust = 1, lineheight = 0.9
   ) +
   scale_linetype_manual(values = c(main = "solid", excl = "dashed"), guide = "none") +
   labs(
     title = "CONSORT flow diagram",
     caption = "Exclusion: failed the attention check"
   ) +
-  coord_cartesian(clip = "off") +
+  coord_cartesian(clip = "off", ylim = c(0.2, 11)) +
   theme_void() +
   theme(
     plot.title = element_text(hjust = 0.5, size = 13, face = "bold"),
-    plot.caption = element_text(hjust = 0.5, size = 9)
+    plot.caption = element_text(hjust = 0.5, size = 9, margin = margin(t = 12))
   )
 
 consort_plot
 
 ggsave(
   file.path(results_dir, "consort_flowchart.png"),
-  consort_plot, width = 9, height = 6, dpi = 150, bg = "white"
+  consort_plot, width = 9, height = 6.6, dpi = 150, bg = "white"
 )
 
