@@ -51,12 +51,12 @@ arm_short <- flow$arm |>
   as.character() |>
   str_extract("^V[0-9]+")
 
-# Short description of what each arm actually received.
+# Short description of what each arm actually received, per the trial protocol.
 arm_descriptions <- c(
-  V1_explanations          = "Advice with explanations",
-  V2_explanations_sentence = "Advice with explanations + one-sentence summary",
-  V3_sentence_only         = "Advice with one-sentence summary only",
-  V4_control               = "Standard advice (control)"
+  V1_control              = "Current formulation (control)",
+  V2_sentence             = "Added sentence about when it is okay to participate in activities or go to work",
+  V3_definitions          = "Added definitions of key terms",
+  V4_sentence_definitions = "Added sentence about activities/work + added definitions of key terms"
 )
 arm_desc <- str_wrap(arm_descriptions[as.character(flow$arm)], width = 16)
 

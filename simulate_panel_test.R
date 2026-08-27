@@ -6,7 +6,12 @@ library(tidyverse)
 set.seed(4831)
 
 n <- 200
-arms <- c("V1_explanations", "V2_explanations_sentence", "V3_sentence_only", "V4_control")
+# Arm coding per trial protocol:
+#   V1 (control)            - current formulation
+#   V2                      - + sentence on when it's okay to work/participate in activities
+#   V3                      - + definitions of key terms
+#   V4                      - + sentence AND definitions
+arms <- c("V1_control", "V2_sentence", "V3_definitions", "V4_sentence_definitions")
 
 likert5_extent <- c("Not at all", "To a small extent", "To some extent",
                      "To a large extent", "To a very large extent")
@@ -25,8 +30,8 @@ scenario_info <- tibble(
 )
 
 # Assumed probability of answering all 3 items correctly per scenario, by arm
-p_correct_by_arm <- c(V1_explanations = 0.65, V2_explanations_sentence = 0.72,
-                       V3_sentence_only = 0.68, V4_control = 0.55)
+p_correct_by_arm <- c(V1_control = 0.55, V2_sentence = 0.68,
+                       V3_definitions = 0.65, V4_sentence_definitions = 0.72)
 
 sim_likert_directional <- function(n, correct_high, p_correct) {
   is_correct <- runif(n) < p_correct
@@ -47,7 +52,7 @@ sim_likert_directional <- function(n, correct_high, p_correct) {
 
 # ---- Secondary outcomes ----
 
-has_explanations <- df$arm %in% c("V1_explanations", "V2_explanations_sentence")
+has_explanations <- df$arm %in% c("V3_definitions", "V4_sentence_definitions")
 
 # Understanding of the advice: main goal (Table 4)
 goal_opts <- c(
