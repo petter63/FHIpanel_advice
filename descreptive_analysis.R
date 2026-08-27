@@ -157,7 +157,7 @@ consort_plot <- ggplot() +
   ) +
   scale_linetype_manual(values = c(main = "solid", excl = "dashed"), guide = "none") +
   labs(
-    title = "CONSORT flow diagram",
+    title = "CONSORT flow chart",
     caption = "Exclusion: failed the attention check"
   ) +
   coord_cartesian(clip = "off", ylim = c(0.2, 11)) +
