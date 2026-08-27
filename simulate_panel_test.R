@@ -44,11 +44,109 @@ sim_likert_directional <- function(n, correct_high, p_correct) {
   }, numeric(1))
 }
 
-# NOTE: this script assumes `df` has already been assembled with baseline
-# characteristics, arm assignment, and the 5-scenario primary outcome items
-# (s1_item_a ... s5_enough_info) using the helpers above, before the
-# secondary-outcome block below is run. See conversation history / analysis
-# notebook for the full baseline + primary-outcome simulation step.
+# ---- Baseline characteristics and arm assignment ----
+
+participant_id <- sprintf("P%04d", seq_len(n))
+arm <- sample(arms, n, replace = TRUE)
+
+age_group_opts <- c("16-24", "25-34", "35-44", "45-54", "55-64", "65+")
+age_group <- sample(age_group_opts, n, replace = TRUE,
+                     prob = c(0.12, 0.18, 0.19, 0.18, 0.16, 0.17))
+
+gender <- sample(c("Female", "Male", "Other"), n, replace = TRUE,
+                  prob = c(0.49, 0.49, 0.02))
+
+region_opts <- c("Agder", "Akershus", "Buskerud", "Finnmark", "Innlandet",
+                  "M\u00f8re og Romsdal", "Nordland", "Oslo", "Rogaland",
+                  "Telemark", "Troms", "Tr\u00f8ndelag", "Vestfold",
+                  "Vestland", "\u00d8stfold")
+region <- sample(region_opts, n, replace = TRUE)
+
+education_opts <- c("Elementary or lower", "Highschool", "Vocational school",
+                     "University/college <=4yr", "University/college >4yr")
+education <- sample(education_opts, n, replace = TRUE,
+                     prob = c(0.08, 0.28, 0.22, 0.24, 0.18))
+
+employed <- sample(c("No", "Yes"), n, replace = TRUE, prob = c(0.25, 0.75))
+
+health_literacy_opts <- c("Very easy", "Easy", "Neutral", "Difficult", "Very difficult")
+health_literacy <- sample(health_literacy_opts, n, replace = TRUE,
+                            prob = c(0.18, 0.32, 0.28, 0.15, 0.07))
+
+attention_check_pass <- runif(n) < 0.97
+
+# Work-related questions only apply to those who are employed.
+contact_high_risk_patients <- ifelse(employed == "Yes",
+                                       sample(c("No", "Yes"), n, replace = TRUE), NA)
+can_work_from_home <- ifelse(employed == "Yes",
+                               sample(c("No", "Yes"), n, replace = TRUE), NA)
+
+baseline_behaviour <- ifelse(
+  employed == "No",
+  sample(c("Not relevant", "Wasn't working at the time"), n, replace = TRUE),
+  sample(baseline_behav_opts, n, replace = TRUE,
+         prob = c(0.14, 0.14, 0.145, 0.18, 0.22, 0.175))
+)
+baseline_behaviour <- factor(baseline_behaviour, levels = baseline_behav_opts)
+
+# WFH / sick-day reason blocks: only asked of those with the matching behaviour.
+is_wfh     <- baseline_behaviour == "Worked from home"
+is_sickday <- baseline_behaviour == "Used a sick day"
+
+make_reason_block <- function(active, cols) {
+  out <- lapply(cols, function(col) {
+    factor(ifelse(active, sample(likert5_extent, n, replace = TRUE), NA),
+           levels = likert5_extent)
+  })
+  names(out) <- cols
+  as_tibble(out)
+}
+
+wfh_reasons     <- make_reason_block(is_wfh, wfh_reason_cols)
+sickday_reasons <- make_reason_block(is_sickday, sickday_reason_cols)
+
+wfh_reason_dont_remember     <- ifelse(is_wfh,     sample(c("No", "Yes"), n, replace = TRUE), NA)
+sickday_reason_dont_remember <- ifelse(is_sickday, sample(c("No", "Yes"), n, replace = TRUE), NA)
+
+# ---- Primary outcome: 5 comprehension scenarios ----
+
+p_correct_vec <- p_correct_by_arm[arm]
+
+scenario_items <- map_dfc(scenario_info$scenario, function(s) {
+  correct_high_a <- scenario_info$item_a_correct_high[scenario_info$scenario == s]
+  item_a <- sim_likert_directional(n, correct_high_a, p_correct_vec)
+  item_b <- sim_likert_directional(n, !correct_high_a, p_correct_vec * 0.9)
+  item_c <- as.double(sample(1:5, n, replace = TRUE))
+  enough_info <- ifelse(runif(n) < pmin(0.95, p_correct_vec + 0.15), "Yes", "No")
+  tibble(
+    !!paste0("s", s, "_item_a")      := item_a,
+    !!paste0("s", s, "_item_b")      := item_b,
+    !!paste0("s", s, "_item_c")      := item_c,
+    !!paste0("s", s, "_enough_info") := enough_info
+  )
+})
+
+df <- bind_cols(
+  tibble(
+    participant_id              = participant_id,
+    arm                         = factor(arm, levels = arms),
+    age_group                  = factor(age_group, levels = age_group_opts),
+    gender                      = factor(gender, levels = c("Female", "Male", "Other")),
+    region                      = factor(region, levels = region_opts),
+    education                   = factor(education, levels = education_opts),
+    employed                    = employed,
+    health_literacy            = factor(health_literacy, levels = health_literacy_opts),
+    attention_check_pass       = attention_check_pass,
+    contact_high_risk_patients = contact_high_risk_patients,
+    can_work_from_home         = can_work_from_home,
+    baseline_behaviour         = baseline_behaviour
+  ),
+  wfh_reasons,
+  tibble(wfh_reason_dont_remember = wfh_reason_dont_remember),
+  sickday_reasons,
+  tibble(sickday_reason_dont_remember = sickday_reason_dont_remember),
+  scenario_items
+)
 
 # ---- Secondary outcomes ----
 
