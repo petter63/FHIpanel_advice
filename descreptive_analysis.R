@@ -184,11 +184,21 @@ library(readr)
 
 # Restrict to the analysed sample (excludes those who failed the attention
 # check), consistent with the "Analysed" count in the CONSORT flow chart.
-analysed <- panel_test |> filter(attention_check_pass)
+analysed <- panel_test |> 
+  filter(attention_check_pass) |>
+  rename("Age group" = "age_group",
+         "Gender" = "gender",
+         "Region" = "region",
+         "Education" = "education",
+         "Employed" = "employed",
+         "Health literacy" = "health_literacy",
+         "Can work from home" = "can_work_from_home",
+         "Baseline behaviour" = "baseline_behaviour",
+         "Contact high risk patients" = "contact_high_risk_patients")
 
 baseline_vars <- c(
-  "age_group", "gender", "region", "education", "employed", "health_literacy",
-  "baseline_behaviour", "contact_high_risk_patients", "can_work_from_home"
+  "Age group", "Gender", "Region", "Education", "Employed", "Health literacy",
+  "Baseline behaviour", "Contact high risk patients", "Can work from home"
 )
 
 # Replace NA with an explicit "Not applicable" category (e.g. the work-related
