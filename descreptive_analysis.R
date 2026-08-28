@@ -180,6 +180,7 @@ ggsave(
 library(tidyr)
 library(purrr)
 library(forcats)
+library(readr)
 
 # Restrict to the analysed sample (excludes those who failed the attention
 # check), consistent with the "Analysed" count in the CONSORT flow chart.
