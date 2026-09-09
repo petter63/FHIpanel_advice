@@ -40,8 +40,13 @@ n_total <- nrow(panel_test)
 
 # Number randomised/excluded/analysed per arm.
 # Exclusion here: failed the attention check (attention_check_pass == FALSE).
+# complete() guarantees both TRUE/FALSE columns exist even when nobody (or
+# everybody) fails the check -- e.g. attention_check_pass is currently a
+# placeholder (always TRUE; see clean_panel_test.R) until a real
+# attention-check item is available.
 flow <- panel_test |>
   count(arm, attention_check_pass) |>
+  tidyr::complete(arm, attention_check_pass = c(TRUE, FALSE), fill = list(n = 0)) |>
   tidyr::pivot_wider(names_from = attention_check_pass, values_from = n, values_fill = 0) |>
   rename(n_excluded = `FALSE`, n_analysed = `TRUE`) |>
   mutate(n_allocated = n_excluded + n_analysed) |>
@@ -312,3 +317,5 @@ gtsave(table2_gt, file.path(results_dir, "table2_baseline_characteristics.rtf"))
 gtsave(table2_gt, file.path(results_dir, "table2_baseline_characteristics.html"))
 
 #-------------------------------------------------------------------------------
+
+
