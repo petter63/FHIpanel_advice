@@ -17,6 +17,20 @@
 ## inconsistencies -- e.g. a typo'd column and inconsistent casing on
 ## Scenario_3 items in "Smittevern results_Y.xlsx" -- which are normalised
 ## away here since this script targets one consistent variable set).
+##
+## The scoring rules for the comprehension items and the two checkbox
+## outcomes are taken from "data/Smittevern_RCT_codebook and data
+## dictionary.xlsx" (sheet "Detailed variable key" / "Derived outcomes"):
+##  - Scenario_*.Careful is *always* correct at the high end (4-5), and
+##    Scenario_*.Normal is *always* correct at the low end (1-2),
+##    regardless of scenario -- only the Delay/Home item's correct
+##    direction flips by scenario (see `scenario_spec$correct_high`).
+##  - High_risk checkbox: correct = options {1, 2, 4, 6} selected and
+##    {3, 5} not selected (option suffixes follow the questionnaire's
+##    option numbers, not worksheet order -- .6 is the healthy 2-month-old
+##    and .5 is "none of the above").
+
+rm(list = ls())
 
 library(tidyverse)
 
@@ -24,7 +38,11 @@ set.seed(6274)
 
 ## ---- Arm / file setup ---------------------------------------------------
 ## Assumed mapping to the trial protocol (adjust if the true mapping
-## differs -- the raw files carry no explicit arm label):
+## differs -- the raw files carry no explicit arm label). The codebook's
+## own "Review before analysis" sheet flags this as a CRITICAL open issue
+## ("Randomized arm absent" -> "Merge verified allocation data"), so this
+## mapping remains a placeholder until the real randomisation log is
+## merged in:
 ##   W -> V1 (control), X -> V2 (+ sentence), Y -> V3 (+ definitions),
 ##   Z -> V4 (+ sentence & definitions)
 arm_files <- tibble(
@@ -86,9 +104,11 @@ scenario_spec <- tibble(
 sim_scenario_block <- function(n, p_correct) {
   map_dfc(seq_len(nrow(scenario_spec)), function(s) {
     spec <- scenario_spec[s, ]
+    # Per the codebook: Careful is always correct-high, Normal is always
+    # correct-low, independent of scenario; only Delay/Home (item1) flips.
     item1 <- sim_likert_directional(n, spec$correct_high, p_correct)
-    item2 <- sim_likert_directional(n, !spec$correct_high, p_correct * 0.9)
-    item3 <- sample(1:5, n, replace = TRUE)
+    item2 <- sim_likert_directional(n, TRUE,  p_correct * 0.9)
+    item3 <- sim_likert_directional(n, FALSE, p_correct * 0.9)
     enough_info <- sample(1:5, n, replace = TRUE, prob = c(0.05, 0.08, 0.12, 0.35, 0.40))
 
     use_lower <- spec$item23_case == "lower"
@@ -159,7 +179,9 @@ simulate_one_arm <- function(arm, n, p_correct, has_explanations,
   p_true_hit_risk  <- if (has_explanations) 0.78 else 0.50
   p_false_hit_risk <- if (has_explanations) 0.15 else 0.35
   risk_selection <- sim_checkbox_block(
-    n, paste0("High_risk.", 1:6), true_opts = c(1, 2, 4, 5),
+    # Correct = {1, 2, 4, 6} selected; {3, 5} not selected (see codebook note
+    # above on option suffixes vs. worksheet order).
+    n, paste0("High_risk.", 1:6), true_opts = c(1, 2, 4, 6),
     p_true_hit = rep(p_true_hit_risk, n), p_false_hit = rep(p_false_hit_risk, n)
   )
 

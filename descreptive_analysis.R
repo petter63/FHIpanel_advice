@@ -1,10 +1,12 @@
 #-------------------------------------------------------------------------------
 # Prosjekt: FHI-panel effekt av smittevernraad
 #-------------------------------------------------------------------------------
-# Beskrivelse av test-data
+# Load and describe test-data
+library(skimr)
 
 panel_test <- readRDS("panel_test.rds")
 str(panel_test)
+skimr::skim(panel_test)
 
 #-------------------------------------------------------------------------------
 # CONSORT flytdiagram
@@ -210,7 +212,12 @@ baseline_vars <- c(
 # questions are only asked of those who are employed), so denominators stay clear.
 prep_var <- function(x) {
   if (is.factor(x)) {
-    fct_na_value_to_level(x, "Not applicable")
+    x <- fct_na_value_to_level(x, "Not applicable")
+    # Some baseline variables (e.g. age_group, education) are ordered
+    # factors; strip the "ordered" class (keeping level order) so the
+    # "level" column stays a consistent type once map_dfr() stacks
+    # different variables' summaries together below.
+    factor(x, levels = levels(x), ordered = FALSE)
   } else {
     replace_na(x, "Not applicable")
   }
