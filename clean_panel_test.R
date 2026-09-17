@@ -108,7 +108,12 @@ item1_correct_high <- c(TRUE, TRUE, FALSE, FALSE, FALSE)
 
 is_correct <- function(x, correct_high) {
   code <- suppressWarnings(as.numeric(x))
-  if (correct_high) code %in% c(4, 5) else code %in% c(1, 2)
+  # %in% resolves an NA lookup to FALSE rather than NA, so it must be
+  # restored explicitly -- otherwise missing items are silently scored as
+  # "incorrect" instead of propagating as missing.
+  result <- if (correct_high) code %in% c(4, 5) else code %in% c(1, 2)
+  result[is.na(code)] <- NA
+  result
 }
 
 scenario_items <- map(1:5, function(s) {
@@ -135,7 +140,13 @@ primary_items <- do.call(cbind, lapply(1:5, function(s) {
     is_correct(panel_test_raw[[row$item3]], FALSE)
   )
 }))
-primary_correct_count <- rowSums(primary_items, na.rm = TRUE)
+# Rows where all 15 primary-outcome items are missing (survey dropout
+# before reaching the outcome questions -- see simulate_panel_test.R)
+# should stay NA rather than collapse to 0 via na.rm; rows with only some
+# items missing (genuine partial non-response) still sum over what's
+# available.
+primary_all_missing   <- rowSums(is.na(primary_items)) == ncol(primary_items)
+primary_correct_count <- ifelse(primary_all_missing, NA_real_, rowSums(primary_items, na.rm = TRUE))
 primary_threshold_12  <- primary_correct_count >= 12
 
 sufficient_info_count <- rowSums(
@@ -165,6 +176,9 @@ panel_test <- panel_test_raw |>
     arm            = arm,
     submitted_at   = `$created`,
     answer_time_ms = `$answer_time_ms`,
+
+    # Met inclusion criteria after consenting (see simulate_panel_test.R).
+    included = Included == "1",
 
     gender    = decode(Gender, gender_labels),
     age_group = decode(Age, age_labels, ordered = TRUE),

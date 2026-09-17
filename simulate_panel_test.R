@@ -29,6 +29,15 @@
 ##    {3, 5} not selected (option suffixes follow the questionnaire's
 ##    option numbers, not worksheet order -- .6 is the healthy 2-month-old
 ##    and .5 is "none of the above").
+##
+## Two additions not present in the real raw exports:
+##  - "Included" (1/0): whether the participant met the inclusion criteria
+##    after consenting (99% = 1, 1% = 0), for the CONSORT "Excluded ...
+##    did not meet inclusion criteria" box.
+##  - Missing primary-outcome data: ~3% of respondents per arm have all
+##    Scenario_* items set to NA (simulating survey dropout before the
+##    outcome questions), for the CONSORT per-arm "Excluded ... missing
+##    outcome data" box.
 
 rm(list = ls())
 
@@ -165,6 +174,14 @@ simulate_one_arm <- function(arm, n, p_correct, has_explanations,
   ## systematically by arm, via p_correct.
   scenario_items <- sim_scenario_block(n, p_correct)
 
+  ## Simulate some participants not completing the primary-outcome
+  ## questions (e.g. dropped out of the survey before reaching them) --
+  ## ~3% per arm, independent of arm/treatment. This is what
+  ## primary_correct_count's missingness (used as "missing outcome data"
+  ## in the CONSORT flow chart) is derived from in clean_panel_test.R.
+  missing_outcome <- runif(n) < 0.03
+  scenario_items[missing_outcome, ] <- NA
+
   ## Secondary outcomes: some vary by has_explanations, as in the trial's
   ## hypothesis that added definitions/sentences improve comprehension.
   p_goal_correct <- if (has_explanations) c(0.02, 0.82, 0.03, 0.13) else c(0.02, 0.70, 0.04, 0.24)
@@ -187,10 +204,15 @@ simulate_one_arm <- function(arm, n, p_correct, has_explanations,
 
   ## ---- Assemble: "arm" first, then the real files' variables in their
   ## original column order ----
+  ## Inclusion criteria met after consent (e.g. age/residency/language
+  ## checks) -- 99% meet the criteria (coded 1), 1% do not (coded 0).
+  included <- sample(c("1", "0"), n, replace = TRUE, prob = c(0.99, 0.01))
+
   out <- tibble(
     arm               = arm,
     `$submission_id` = submission_ids,
     `$created`        = created,
+    Included          = included,
     Gender            = sim_coded(n, c(0.570, 0.424, 0.002, 0.003)),
     Age               = sim_coded(n, c(0.024, 0.141, 0.182, 0.257, 0.355, 0.041)),
     Municipality      = sim_coded(n, c(0.071, 0.121, 0.165, 0.064, 0.063, 0.047, 0.030,

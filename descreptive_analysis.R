@@ -1,5 +1,5 @@
 #-------------------------------------------------------------------------------
-# Prosjekt: FHI-panel effekt av smittevernraad
+# Project: FHI-panel effectiveness of infection prevention recommendations
 #-------------------------------------------------------------------------------
 # Load and describe test-data
 library(skimr)
@@ -9,14 +9,14 @@ str(panel_test)
 skimr::skim(panel_test)
 
 #-------------------------------------------------------------------------------
-# CONSORT flytdiagram
+# CONSORT flow diagram
 #-------------------------------------------------------------------------------
 library(dplyr)
 library(ggplot2)
 library(stringr)
 
 # Each run gets its own timestamped subfolder under results/, so output from
-# different runs is kept separate and it's clear when a given result was produced.
+# different runs is kept separate and document when a given result was produced.
 run_id      <- format(Sys.time(), "%Y%m%d_%H%M%S")
 results_dir <- file.path("results", run_id)
 dir.create(results_dir, recursive = TRUE, showWarnings = FALSE)
@@ -40,19 +40,34 @@ writeLines(
 
 n_total <- nrow(panel_test)
 
-# Number randomised/excluded/analysed per arm.
-# Exclusion here: failed the attention check (attention_check_pass == FALSE).
-# complete() guarantees both TRUE/FALSE columns exist even when nobody (or
-# everybody) fails the check -- e.g. attention_check_pass is currently a
-# placeholder (always TRUE; see clean_panel_test.R) until a real
-# attention-check item is available.
+# ---- Enrolment counts -------------------------------------------------------
+# `panel_test` represents everyone who consented (n_total); `included`
+# flags whether they met the inclusion criteria after consenting (see
+# simulate_panel_test.R / clean_panel_test.R). n_invited has no equivalent
+# in the test data and is given directly by the user (2000); n_consented
+# is assumed equal to n_total since there's no separate consent count.
+n_invited    <- 2000
+n_consented  <- n_total
+n_ineligible <- sum(!panel_test$included)
+n_randomised <- n_consented - n_ineligible
+
+# Number allocated/analysed per arm, restricted to those who met the
+# inclusion criteria (ineligible respondents are excluded upstream, at
+# enrolment, and never reach allocation).
+# Exclusion here (Allocation -> Analysis): missing outcome data, i.e. the
+# respondent did not answer the primary-outcome items (all 5 comprehension
+# scenarios), identified via NA in primary_correct_count.
 flow <- panel_test |>
-  count(arm, attention_check_pass) |>
-  tidyr::complete(arm, attention_check_pass = c(TRUE, FALSE), fill = list(n = 0)) |>
-  tidyr::pivot_wider(names_from = attention_check_pass, values_from = n, values_fill = 0) |>
-  rename(n_excluded = `FALSE`, n_analysed = `TRUE`) |>
-  mutate(n_allocated = n_excluded + n_analysed) |>
+  filter(included) |>
+  group_by(arm) |>
+  summarise(
+    n_allocated       = n(),
+    n_missing_outcome = sum(is.na(primary_correct_count)),
+    .groups = "drop"
+  ) |>
+  mutate(n_analysed = n_allocated - n_missing_outcome) |>
   arrange(arm)
+stopifnot(sum(flow$n_allocated) == n_randomised)
 
 arm_short <- flow$arm |>
   as.character() |>
@@ -69,75 +84,121 @@ arm_desc <- str_wrap(arm_descriptions[as.character(flow$arm)], width = 16)
 
 n_arms  <- nrow(flow)
 x_col   <- seq(0, by = 7, length.out = n_arms)
+x_mid   <- mean(x_col)
 box_w   <- 2.6
 box_h   <- 1.5
-excl_w  <- 2.2
+excl_w  <- 2.6
 x_label <- min(x_col) - box_w / 2 - 2.2
 
+# Enrolment segment: Invited -> Consented -> (Excluded, pooled) -> Randomised.
+y_invited    <- 15.5
+y_consented  <- 13
+y_randomised <- 10
+y_alloc      <- 7
+y_analysis   <- 3.5
+
+box_invited <- tibble(
+  xmin = x_mid - box_w, xmax = x_mid + box_w,
+  ymin = y_invited - box_h / 2, ymax = y_invited + box_h / 2,
+  label = paste0("Invited\n(N = ", n_invited, ")")
+)
+
+box_consented <- tibble(
+  xmin = x_mid - box_w, xmax = x_mid + box_w,
+  ymin = y_consented - box_h / 2, ymax = y_consented + box_h / 2,
+  label = paste0("Consented\n(N = ", n_consented, ")")
+)
+
 box_randomised <- tibble(
-  xmin = mean(x_col) - box_w, xmax = mean(x_col) + box_w,
-  ymin = 10 - box_h / 2,      ymax = 10 + box_h / 2,
-  label = paste0("Randomised\n(N = ", n_total, ")")
+  xmin = x_mid - box_w, xmax = x_mid + box_w,
+  ymin = y_randomised - box_h / 2, ymax = y_randomised + box_h / 2,
+  label = paste0("Randomised\n(N = ", n_randomised, ")")
+)
+
+# Midpoint of the Consented -> Randomised arrow, where the "Excluded"
+# (did not meet inclusion criteria) box branches off to the side.
+y_mid_enrol <- mean(c(y_consented - box_h / 2, y_randomised + box_h / 2))
+
+box_excl <- tibble(
+  xmin = x_mid + box_w + 0.6, xmax = x_mid + box_w + 0.6 + excl_w,
+  ymin = y_mid_enrol - box_h / 2.2, ymax = y_mid_enrol + box_h / 2.2,
+  label = paste0("Excluded\n(N = ", n_ineligible, ")")
 )
 
 box_alloc <- tibble(
   xmin = x_col - box_w / 2, xmax = x_col + box_w / 2,
-  ymin = 7 - box_h / 2,     ymax = 7 + box_h / 2,
+  ymin = y_alloc - box_h / 2, ymax = y_alloc + box_h / 2,
   label = paste0(arm_short, "\n(n = ", flow$n_allocated, ")")
-)
-
-box_excl <- tibble(
-  xmin = x_col + box_w / 2 + 0.4, xmax = x_col + box_w / 2 + 0.4 + excl_w,
-  ymin = 7 - box_h / 2,           ymax = 7 + box_h / 2,
-  label = paste0("Excl.\n(n = ", flow$n_excluded, ")")
 )
 
 box_analysed <- tibble(
   xmin = x_col - box_w / 2, xmax = x_col + box_w / 2,
-  ymin = 3.5 - box_h / 2,   ymax = 3.5 + box_h / 2,
+  ymin = y_analysis - box_h / 2, ymax = y_analysis + box_h / 2,
   label = paste0(arm_short, "\n(n = ", flow$n_analysed, ")")
 )
 
+# Midpoint of each arm's Allocation -> Analysis arrow, where a per-arm
+# "Excluded" (missing outcome data) box branches off to the side.
+y_mid_arm <- mean(c(y_alloc - box_h / 2, y_analysis + box_h / 2))
+excl_arm_w <- 2.4
+
+box_excl_arm <- tibble(
+  xmin = x_col + box_w / 2 + 0.4, xmax = x_col + box_w / 2 + 0.4 + excl_arm_w,
+  ymin = y_mid_arm - box_h / 2.2, ymax = y_mid_arm + box_h / 2.2,
+  label = paste0("Missing data\n(n = ", flow$n_missing_outcome, ")")
+)
+
 boxes <- bind_rows(
+  mutate(box_invited,    type = "main"),
+  mutate(box_consented,  type = "main"),
   mutate(box_randomised, type = "main"),
-  mutate(box_alloc,      type = "main"),
   mutate(box_excl,       type = "excl"),
-  mutate(box_analysed,   type = "main")
+  mutate(box_alloc,      type = "main"),
+  mutate(box_analysed,   type = "main"),
+  mutate(box_excl_arm,   type = "excl")
 )
 
 row_labels <- tibble(
   x = x_label,
-  y = c(10, 7, 3.5),
-  label = c("Randomisation", "Allocation", "Analysis")
+  y = c(mean(c(y_invited, y_consented)), y_randomised, y_alloc, y_analysis),
+  label = c("Enrolment", "Randomisation", "Allocation", "Analysis")
 )
 
 desc_labels <- tibble(
   x = x_col,
-  y = 3.5 - box_h / 2 - 1.1,
+  y = y_analysis - box_h / 2 - 1.1,
   label = arm_desc
 )
 
-arrows_split <- tibble(
-  x = mean(x_col), y = 10 - box_h / 2,
-  xend = x_col,     yend = 7 + box_h / 2
+arrows_enrol <- tibble(
+  x = x_mid,        y = c(y_invited - box_h / 2, y_consented - box_h / 2),
+  xend = x_mid,      yend = c(y_consented + box_h / 2, y_randomised + box_h / 2)
 )
 arrows_excl <- tibble(
-  x = x_col + box_w / 2,          y = 7,
-  xend = x_col + box_w / 2 + 0.4, yend = 7
+  x = x_mid,               y = y_mid_enrol,
+  xend = x_mid + box_w + 0.6, yend = y_mid_enrol
+)
+arrows_split <- tibble(
+  x = x_mid, y = y_randomised - box_h / 2,
+  xend = x_col, yend = y_alloc + box_h / 2
 )
 arrows_down <- tibble(
-  x = x_col, y = 7 - box_h / 2,
-  xend = x_col, yend = 3.5 + box_h / 2
+  x = x_col, y = y_alloc - box_h / 2,
+  xend = x_col, yend = y_analysis + box_h / 2
+)
+arrows_excl_arm <- tibble(
+  x = x_col,                       y = y_mid_arm,
+  xend = x_col + box_w / 2 + 0.4,  yend = y_mid_arm
 )
 
 consort_plot <- ggplot() +
   geom_segment(
-    data = bind_rows(arrows_split, arrows_down),
+    data = bind_rows(arrows_enrol, arrows_split, arrows_down),
     aes(x = x, y = y, xend = xend, yend = yend),
     arrow = arrow(length = unit(0.15, "cm"), type = "closed"), linewidth = 0.4
   ) +
   geom_segment(
-    data = arrows_excl,
+    data = bind_rows(arrows_excl, arrows_excl_arm),
     aes(x = x, y = y, xend = xend, yend = yend),
     arrow = arrow(length = unit(0.15, "cm"), type = "closed"), linewidth = 0.4
   ) +
@@ -147,9 +208,14 @@ consort_plot <- ggplot() +
     fill = "white", colour = "black"
   ) +
   geom_text(
-    data = boxes,
+    data = filter(boxes, type == "main"),
     aes(x = (xmin + xmax) / 2, y = (ymin + ymax) / 2, label = label),
     size = 3, lineheight = 0.95
+  ) +
+  geom_text(
+    data = filter(boxes, type == "excl"),
+    aes(x = (xmin + xmax) / 2, y = (ymin + ymax) / 2, label = label),
+    size = 2.5, lineheight = 0.95
   ) +
   geom_text(
     data = row_labels,
@@ -165,9 +231,15 @@ consort_plot <- ggplot() +
   scale_linetype_manual(values = c(main = "solid", excl = "dashed"), guide = "none") +
   labs(
     title = "CONSORT flow chart",
-    caption = "Exclusion: failed the attention check"
+    caption = str_wrap(
+      paste(
+        "Excluded after consent: did not meet inclusion criteria.",
+        "Excluded per arm: missing outcome data (did not answer the survey)."
+      ),
+      width = 90
+    )
   ) +
-  coord_cartesian(clip = "off", ylim = c(0.2, 11)) +
+  coord_cartesian(clip = "off", ylim = c(0.2, 16.5)) +
   theme_void() +
   theme(
     plot.title = element_text(hjust = 0.5, size = 13, face = "bold"),
@@ -189,10 +261,10 @@ library(purrr)
 library(forcats)
 library(readr)
 
-# Restrict to the analysed sample (excludes those who failed the attention
-# check), consistent with the "Analysed" count in the CONSORT flow chart.
+# Restrict to the analysed sample (excludes those with missing outcome
+# data), consistent with the "Analysed" count in the CONSORT flow chart.
 analysed <- panel_test |> 
-  filter(attention_check_pass) |>
+  filter(!is.na(primary_correct_count)) |>
   rename("Age group" = "age_group",
          "Gender" = "gender",
          "Region" = "region",
