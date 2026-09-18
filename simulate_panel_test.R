@@ -34,10 +34,19 @@
 ##  - "Included" (1/0): whether the participant met the inclusion criteria
 ##    after consenting (99% = 1, 1% = 0), for the CONSORT "Excluded ...
 ##    did not meet inclusion criteria" box.
-##  - Missing primary-outcome data: ~3% of respondents per arm have all
-##    Scenario_* items set to NA (simulating survey dropout before the
-##    outcome questions), for the CONSORT per-arm "Excluded ... missing
-##    outcome data" box.
+##  - Missing primary-outcome data: a fixed number of respondents per arm
+##    are simulated as having dropped out of the survey before answering
+##    *anything* -- every column except arm/submission id/timestamp/
+##    Included is set to NA for these rows (not just the Scenario_* items),
+##    so a "missing outcome" record is genuinely missing all data, not a
+##    partially-complete response. This is what feeds the CONSORT per-arm
+##    "Missing data" box, and it also drives the explicit "Missing" row
+##    now shown per baseline characteristic in Table 2
+##    (descreptive_analysis.R): since these rows have every field blank,
+##    they show up there as "Missing" rather than "Not applicable".
+##    Arm sizes and per-arm missing counts are set below to match the real
+##    study's CONSORT flow chart exactly (Allocation / Missing data /
+##    Analysis, see descreptive_analysis.R), not simulated randomly.
 
 rm(list = ls())
 
@@ -54,10 +63,15 @@ set.seed(6274)
 ## merged in:
 ##   W -> V1 (control), X -> V2 (+ sentence), Y -> V3 (+ definitions),
 ##   Z -> V4 (+ sentence & definitions)
+## n = Allocation, n_missing = "Missing data" (Allocation -> Analysis) per
+## arm, both taken directly from the real CONSORT flow chart
+## (descreptive_analysis.R): n - n_missing then equals that chart's
+## Analysis counts (214, 220, 218, 224).
 arm_files <- tibble(
   file_label       = c("W", "X", "Y", "Z"),
   arm              = c("V1_control", "V2_sentence", "V3_definitions", "V4_sentence_definitions"),
-  n                = c(224, 218, 220, 214),
+  n                = c(260, 250, 251, 255),
+  n_missing        = c(46, 30, 33, 31),
   p_correct        = c(0.55, 0.68, 0.65, 0.72),
   has_explanations = c(FALSE, FALSE, TRUE, TRUE)
 )
@@ -135,7 +149,7 @@ sim_scenario_block <- function(n, p_correct) {
 
 ## ---- Per-arm simulation ---------------------------------------------------
 
-simulate_one_arm <- function(arm, n, p_correct, has_explanations,
+simulate_one_arm <- function(arm, n, n_missing, p_correct, has_explanations,
                               submission_ids, created) {
 
   ## Employment: single-select checkbox block (Employment.1/2/3)
@@ -175,11 +189,13 @@ simulate_one_arm <- function(arm, n, p_correct, has_explanations,
   scenario_items <- sim_scenario_block(n, p_correct)
 
   ## Simulate some participants not completing the primary-outcome
-  ## questions (e.g. dropped out of the survey before reaching them) --
-  ## ~3% per arm, independent of arm/treatment. This is what
-  ## primary_correct_count's missingness (used as "missing outcome data"
-  ## in the CONSORT flow chart) is derived from in clean_panel_test.R.
-  missing_outcome <- runif(n) < 0.03
+  ## questions (e.g. dropped out of the survey before reaching them). The
+  ## *number* missing per arm is fixed (n_missing, from arm_files) so it
+  ## matches the real CONSORT "Missing data" counts exactly; *which* rows
+  ## are missing is still random. This is what primary_correct_count's
+  ## missingness is derived from in clean_panel_test.R.
+  missing_outcome <- logical(n)
+  missing_outcome[sample.int(n, n_missing)] <- TRUE
   scenario_items[missing_outcome, ] <- NA
 
   ## Secondary outcomes: some vary by has_explanations, as in the trial's
@@ -246,6 +262,15 @@ simulate_one_arm <- function(arm, n, p_correct, has_explanations,
       `$forwarded_to_form`  = 608092
     ))
 
+  ## Rows with missing outcome data are dropouts: blank out every column
+  # except the identifying/administrative ones (arm, submission id,
+  # timestamp, inclusion status -- all set upstream of the survey itself),
+  # so these rows are genuinely missing all data, not just the outcome
+  # items already NA'd above.
+  id_cols <- c("arm", "$submission_id", "$created", "Included")
+  out <- out |>
+    mutate(across(-all_of(id_cols), ~ replace(.x, missing_outcome, NA)))
+
   out
 }
 
@@ -270,6 +295,7 @@ for (i in seq_len(nrow(arm_files))) {
   panel_test_raw[[i]] <- simulate_one_arm(
     arm              = factor(arm_files$arm[i], levels = arm_levels),
     n                = n_i,
+    n_missing        = arm_files$n_missing[i],
     p_correct        = arm_files$p_correct[i],
     has_explanations = arm_files$has_explanations[i],
     submission_ids   = id_pool[rows],
