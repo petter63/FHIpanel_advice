@@ -16,3 +16,17 @@ results/
 
 # Generated data files - keep only the code that produces them
 *.rds
+
+# Real study data must never reach GitHub -- only simulated/test data and
+# code that reads/produces it should be tracked. This covers the raw
+# survey exports in data/ (currently test-ish "Smittevern *.xlsx" files,
+# but the same folder/names will hold the real data once switched over)
+# plus common raw-data formats generally, as a safety net.
+data/
+*.xlsx
+*.xls
+*.csv
+*.sav
+*.dta
+*.sas7bdat
+*.parquet
