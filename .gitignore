@@ -12,3 +12,7 @@ renv/sandbox/
 
 # Generated analysis output - keep only the code that produces it
 results/
+.posit/assistant
+
+# Generated data files - keep only the code that produces them
+*.rds
