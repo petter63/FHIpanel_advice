@@ -15,7 +15,10 @@ library(gt)
 # 1. Code correct answers and build the outcome (successes / failures out of 15)
 # -------------------------------------------------------------------------
 
+panel_test <- readRDS("panel_test.rds")
+
 panel_test <- panel_test |>
+  filter(!is.na(answer_time_ms)) |>
   mutate(sc1_1 = if_else(scenario1_item1 %in% c("Likely", "Very likely"), 1, 0),
          sc1_2 = if_else(scenario1_item2_careful %in% c("Likely", "Very likely"), 1, 0),
          sc1_3 = if_else(scenario1_item3_normal %in% c("Very unlikely", "Unlikely"), 1, 0),
@@ -70,6 +73,16 @@ fit_rr <- glm(
 
 summary(fit_rr)
 
+# number of correct answers in each arm
+panel_test |>
+  group_by(arm) |>
+  summarise(
+    correct = sum(scenario_sum),
+    not_corr = sum(scenario_fail),
+    total = sum(correct + not_corr),
+    pct = 100 * correct / total
+  )
+
 # -------------------------------------------------------------------------
 # 3. Check for over-dispersion (Pearson chi-square / residual df)
 # -------------------------------------------------------------------------
@@ -113,6 +126,35 @@ z_value <- beta / se
 p_raw   <- 2 * pnorm(abs(z_value), lower.tail = FALSE)
 p_bonf  <- p.adjust(p_raw, method = "bonferroni")
 
+## Risk difference (RD), re-expressed from the RR.
+## RD is a non-linear function of two correlated model parameters -- the
+## control-arm log-risk (intercept, b0) and the log-RR (b1) -- so a delta
+## method is used to propagate uncertainty in BOTH into the SE of RD, rather
+## than treating the control-arm risk as fixed:
+##   p0 = exp(b0), p1 = exp(b0 + b1), RD = p1 - p0
+##   d(RD)/d(b0) = p1 - p0 = RD ; d(RD)/d(b1) = p1
+##   Var(RD) = (dRD/db0)^2 Var(b0) + (dRD/db1)^2 Var(b1) + 2 (dRD/db0)(dRD/db1) Cov(b0,b1)
+delta_rd <- function(coefs, Vmat, term_idx, ref_idx = 1) {
+  b0 <- unname(coefs[ref_idx]); b1 <- unname(coefs[term_idx])
+  v00 <- Vmat[ref_idx, ref_idx]
+  v11 <- Vmat[term_idx, term_idx]
+  v01 <- Vmat[ref_idx, term_idx]
+  p0 <- exp(b0)
+  p1 <- exp(b0 + b1)
+  rd <- p1 - p0
+  d_b0 <- rd
+  d_b1 <- p1
+  var_rd <- d_b0^2 * v00 + d_b1^2 * v11 + 2 * d_b0 * d_b1 * v01
+  c(rd = unname(rd), se = unname(sqrt(var_rd)))
+}
+
+coefs_rr <- coef(fit_rr)
+rd_sate <- purrr::map_dfr(seq_along(beta) + 1, function(i) {
+  out <- delta_rd(coefs_rr, V, i, ref_idx = 1)
+  tibble(term = names(coefs_rr)[i], RD = out["rd"], RD_SE = out["se"])
+}) |>
+  mutate(RD_CI_lower = RD - z_crit * RD_SE, RD_CI_upper = RD + z_crit * RD_SE)
+
 resultat <- tibble(
   term      = names(beta),
   RR        = exp(beta),
@@ -121,6 +163,7 @@ resultat <- tibble(
   CI_upper  = exp(beta + z_crit * se),
   p_bonferroni = p_bonf
 ) |>
+  left_join(rd_sate, by = "term") |>
   mutate(
     Comparison = recode(
       term,
@@ -129,12 +172,16 @@ resultat <- tibble(
       "armV4_sentence_definitions" = "V4 (sentence + definitions) vs. V1 (control)"
     ),
     `RR (95% Bonferroni-adjusted CI)` = sprintf("%.2f (%.2f to %.2f)", RR, CI_lower, CI_upper),
+    `RD (95% Bonferroni-adjusted CI, pct. points)` = sprintf(
+      "%.1f (%.1f to %.1f)", 100 * RD, 100 * RD_CI_lower, 100 * RD_CI_upper
+    ),
     `Bonferroni-adjusted p value` = case_when(
       p_bonferroni < 0.001 ~ "<0.001",
       TRUE ~ sprintf("%.3f", p_bonferroni)
     )
   ) |>
-  select(Comparison, `RR (95% Bonferroni-adjusted CI)`, `Bonferroni-adjusted p value`)
+  select(Comparison, `RR (95% Bonferroni-adjusted CI)`,
+         `RD (95% Bonferroni-adjusted CI, pct. points)`, `Bonferroni-adjusted p value`)
 
 resultat
 
@@ -155,17 +202,25 @@ resultat_gt <- resultat |>
   cols_label(
     Comparison = "Comparison",
     `RR (95% Bonferroni-adjusted CI)` = "RR (95% Bonferroni-adjusted CI)",
+    `RD (95% Bonferroni-adjusted CI, pct. points)` = "RD, pct. points (95% Bonferroni-adjusted CI)",
     `Bonferroni-adjusted p value` = "Bonferroni-adjusted p value"
   ) |>
   cols_align(align = "left", columns = Comparison) |>
-  cols_align(align = "center", columns = c(`RR (95% Bonferroni-adjusted CI)`, `Bonferroni-adjusted p value`)) |>
+  cols_align(align = "center", columns = c(`RR (95% Bonferroni-adjusted CI)`,
+                                            `RD (95% Bonferroni-adjusted CI, pct. points)`,
+                                            `Bonferroni-adjusted p value`)) |>
   tab_style(
     style = cell_text(weight = "bold"),
     locations = cells_column_labels()
   ) |>
   tab_footnote(
     footnote = sprintf(
-      "Outcome: number of correct answers out of 15 comprehension items. Dispersion statistic = %.2f.",
+      paste(
+        "Outcome: number of correct answers out of 15 comprehension items.",
+        "Dispersion statistic = %.2f. RD (risk difference) is the RR",
+        "re-expressed on the absolute (percentage-point) scale via the delta",
+        "method, propagating uncertainty in both the control-arm risk and the RR."
+      ),
       dispersion
     )
   ) |>
@@ -252,6 +307,9 @@ fit_pate <- svyglm(correct ~ arm, design = design_w, family = quasibinomial(link
 
 summary(fit_pate)
 
+svyby(
+  ~correct, ~arm, design_w, svymean)
+
 # -------------------------------------------------------------------------
 # 6b. Bonferroni adjustment for the 3 pairwise comparisons vs. V1_control
 # -------------------------------------------------------------------------
@@ -269,6 +327,18 @@ t_value_pate <- beta_pate / se_pate
 p_raw_pate   <- 2 * pt(abs(t_value_pate), df = df_pate, lower.tail = FALSE)
 p_bonf_pate  <- p.adjust(p_raw_pate, method = "bonferroni")
 
+## PATE risk difference (RD), via the same delta-method logic as the SATE RD
+## above (section 4), applied to the svyglm coefficients/design-based vcov so
+## that uncertainty in both the (weighted) control-arm risk and the PATE RR
+## is propagated into the SE of RD.
+coefs_pate <- coef(fit_pate)
+Vp <- vcov(fit_pate)
+rd_pate <- purrr::map_dfr(seq_along(beta_pate) + 1, function(i) {
+  out <- delta_rd(coefs_pate, Vp, i, ref_idx = 1)
+  tibble(term = names(coefs_pate)[i], RD = out["rd"], RD_SE = out["se"])
+}) |>
+  mutate(RD_CI_lower = RD - t_crit_pate * RD_SE, RD_CI_upper = RD + t_crit_pate * RD_SE)
+
 resultat_pate <- tibble(
   term      = names(beta_pate),
   RR        = exp(beta_pate),
@@ -276,6 +346,7 @@ resultat_pate <- tibble(
   CI_upper  = exp(beta_pate + t_crit_pate * se_pate),
   p_bonferroni = p_bonf_pate
 ) |>
+  left_join(rd_pate, by = "term") |>
   mutate(
     Comparison = recode(
       term,
@@ -284,20 +355,67 @@ resultat_pate <- tibble(
       "armV4_sentence_definitions" = "V4 (sentence + definitions) vs. V1 (control)"
     ),
     `PATE RR (95% Bonferroni-adjusted CI)` = sprintf("%.2f (%.2f to %.2f)", RR, CI_lower, CI_upper),
+    `PATE RD (95% Bonferroni-adjusted CI, pct. points)` = sprintf(
+      "%.1f (%.1f to %.1f)", 100 * RD, 100 * RD_CI_lower, 100 * RD_CI_upper
+    ),
     `Bonferroni-adjusted p value` = case_when(
       p_bonferroni < 0.001 ~ "<0.001",
       TRUE ~ sprintf("%.3f", p_bonferroni)
     )
   ) |>
-  select(Comparison, `PATE RR (95% Bonferroni-adjusted CI)`, `Bonferroni-adjusted p value`)
+  select(Comparison, `PATE RR (95% Bonferroni-adjusted CI)`,
+         `PATE RD (95% Bonferroni-adjusted CI, pct. points)`, `Bonferroni-adjusted p value`)
 
 resultat_pate
+
+# -------------------------------------------------------------------------
+# 6b2. Descriptive columns for Table 4: crude SATE n/N (%) and calibrated
+#      PATE % per arm (unweighted trial counts vs. post-stratification
+#      weighted mean), to sit alongside the PATE RR/RD above.
+# -------------------------------------------------------------------------
+
+crude_sate <- panel_test |>
+  group_by(arm) |>
+  summarise(correct = sum(scenario_sum), total = sum(scenario_sum + scenario_fail)) |>
+  mutate(sate_np = sprintf("%d/%d (%.1f%%)", correct, total, 100 * correct / total))
+
+calibrated_pate <- svyby(~correct, ~arm, design_w, svymean) |>
+  as_tibble() |>
+  mutate(pate_pct = sprintf("%.1f%%", 100 * correct))
+
+term_to_arm <- c(
+  "armV2_sentence"             = "V2_sentence",
+  "armV3_definitions"          = "V3_definitions",
+  "armV4_sentence_definitions" = "V4_sentence_definitions"
+)
+control_sate_np  <- crude_sate$sate_np[crude_sate$arm == "V1_control"]
+control_pate_pct <- calibrated_pate$pate_pct[calibrated_pate$arm == "V1_control"]
+
+resultat_pate_full <- tibble(term = names(beta_pate)) |>
+  mutate(comp_arm = term_to_arm[term]) |>
+  left_join(resultat_pate |> mutate(term = names(beta_pate)), by = "term") |>
+  mutate(
+    `SATE, n/N (%) control`          = control_sate_np,
+    `SATE, n/N (%) intervention`     = crude_sate$sate_np[match(comp_arm, crude_sate$arm)],
+    `PATE, calibrated % control`     = control_pate_pct,
+    `PATE, calibrated % intervention` = calibrated_pate$pate_pct[match(comp_arm, calibrated_pate$arm)]
+  ) |>
+  select(
+    Comparison,
+    `SATE, n/N (%) control`, `SATE, n/N (%) intervention`,
+    `PATE, calibrated % control`, `PATE, calibrated % intervention`,
+    `PATE RR (95% Bonferroni-adjusted CI)`,
+    `PATE RD (95% Bonferroni-adjusted CI, pct. points)`,
+    `Bonferroni-adjusted p value`
+  )
+
+resultat_pate_full
 
 # -------------------------------------------------------------------------
 # 6c. Publication-ready table (gt)
 # -------------------------------------------------------------------------
 
-resultat_pate_gt <- resultat_pate |>
+resultat_pate_gt <- resultat_pate_full |>
   gt() |>
   tab_header(
     title = "Table 4. Population average treatment effect (PATE) on a correct comprehension answer",
@@ -312,22 +430,37 @@ resultat_pate_gt <- resultat_pate |>
   ) |>
   cols_label(
     Comparison = "Comparison",
+    `SATE, n/N (%) control` = "SATE, n/N (%): control",
+    `SATE, n/N (%) intervention` = "SATE, n/N (%): intervention",
+    `PATE, calibrated % control` = "PATE, calibrated %: control",
+    `PATE, calibrated % intervention` = "PATE, calibrated %: intervention",
     `PATE RR (95% Bonferroni-adjusted CI)` = "PATE RR (95% Bonferroni-adjusted CI)",
+    `PATE RD (95% Bonferroni-adjusted CI, pct. points)` = "PATE RD, pct. points (95% Bonferroni-adjusted CI)",
     `Bonferroni-adjusted p value` = "Bonferroni-adjusted p value"
   ) |>
   cols_align(align = "left", columns = Comparison) |>
-  cols_align(align = "center", columns = c(`PATE RR (95% Bonferroni-adjusted CI)`, `Bonferroni-adjusted p value`)) |>
+  cols_align(align = "center", columns = c(
+    `SATE, n/N (%) control`, `SATE, n/N (%) intervention`,
+    `PATE, calibrated % control`, `PATE, calibrated % intervention`,
+    `PATE RR (95% Bonferroni-adjusted CI)`,
+    `PATE RD (95% Bonferroni-adjusted CI, pct. points)`,
+    `Bonferroni-adjusted p value`
+  )) |>
   tab_style(
     style = cell_text(weight = "bold"),
     locations = cells_column_labels()
   ) |>
   tab_footnote(
     footnote = paste(
-      "Weights from panel_weighting.rds (weighting.R): raked separately within",
-      "each arm to national population margins for age group, gender, and",
-      "education level (SSB). Respondents with no population benchmark",
-      "(missing demographics, or gender = Other/Prefer not to say) retain",
-      "weight = 1."
+      "SATE = sample average treatment effect (crude, unweighted trial counts).",
+      "PATE = population average treatment effect: weights from",
+      "panel_weighting.rds (weighting.R), raked separately within each arm to",
+      "national population margins for age group, gender, and education level",
+      "(SSB); respondents with no population benchmark (missing demographics,",
+      "or gender = Other/Prefer not to say) retain weight = 1.",
+      "RD (risk difference) re-expresses the PATE RR on the absolute",
+      "(percentage-point) scale via the delta method, propagating uncertainty",
+      "in both the weighted control-arm risk and the RR."
     )
   ) |>
   tab_options(
