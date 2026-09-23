@@ -20,7 +20,7 @@
 
 # ------------------------------------------------------------------------------
 # Start by running descreptive_analysis.R (to start a new result folder) and
-## run prim_outcome.R (to ensure correct variables in panel_test)
+## run prim_outcome.R (to ensure correct variables in the data frame panel_test)
 
 # ------------------------------------------------------------------------------
 
@@ -208,7 +208,7 @@ resultat_subgroups
 
 write.csv(
   resultat_subgroups |> select(-dispersion, -SE_type),
-  file.path(results_dir, "table5_subgroup_analyses.csv"),
+  file.path(results_dir, "table6_subgroup_analyses.csv"),
   row.names = FALSE
 )
 
