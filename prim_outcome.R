@@ -12,6 +12,10 @@ library(survey)
 library(gt)
 
 # -------------------------------------------------------------------------
+## Ensure to create a new folder and log by running descreptive_analysis.R,
+## line 18 - 41, before primary analysis
+
+# -------------------------------------------------------------------------
 # 1. Code correct answers and build the outcome (successes / failures out of 15)
 # -------------------------------------------------------------------------
 

@@ -289,7 +289,7 @@ if (use_robust_se) {
 }
 
 coeftest(sens1_rr, vcov = V)
-
+xx
 # -------------------------------------------------------------------------
 # 4. Bonferroni adjustment for the 3 pairwise comparisons vs. V1_control
 # -------------------------------------------------------------------------
