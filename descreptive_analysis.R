@@ -2,11 +2,18 @@
 # Project: FHI-panel effectiveness of infection prevention recommendations
 #-------------------------------------------------------------------------------
 # Load and describe test-data
+# NB: the data frame is named "panel" from here on (loaded from
+# panel_test.rds, which is still produced by simulate_panel_test.R /
+# clean_panel_test.R under the name panel_test) -- once real study data
+# is available, simply load it into a data frame also named "panel" and
+# all downstream scripts (missing_data.R, weighting.R, prim_outcome.R,
+# secondary_outcome.R, subgroup_analysis.R, sensitivity_analyses.R) will
+# work unchanged.
 library(skimr)
 
-panel_test <- readRDS("panel_test.rds")
-str(panel_test)
-skimr::skim(panel_test)
+panel <- readRDS("panel_test.rds")
+str(panel)
+skimr::skim(panel)
 
 #-------------------------------------------------------------------------------
 # CONSORT flow diagram
@@ -38,7 +45,7 @@ writeLines(
   file.path(results_dir, "run_info.txt")
 )
 
-n_total <- nrow(panel_test)
+n_total <- nrow(panel)
 
 # ---- Enrolment counts -------------------------------------------------------
 # Real study flow (not the simulated test data): nobody was excluded after
@@ -237,7 +244,7 @@ library(readr)
 # see simulate_panel_test.R -- these rows are missing every field, not
 # just the outcome items) show up as an explicit "Missing" category per
 # characteristic below, rather than being silently excluded.
-baseline_pop <- panel_test |>
+baseline_pop <- panel |>
   rename("Age group" = "age_group",
          "Gender" = "gender",
          "Region" = "region",

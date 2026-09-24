@@ -69,7 +69,7 @@
 
 # ------------------------------------------------------------------------------
 # Start by running descriptive_analysis.R (to start a new result folder) and
-## run prim_outcome.R (to ensure correct variables in panel_test)
+## run prim_outcome.R (to ensure correct variables in panel)
 
 # -------------------------------------------------------------------------
 # Multiplicity across the secondary-outcome family
@@ -84,7 +84,7 @@ n_secondary_analyses       <- 12
 n_comparisons_per_analysis <- 3
 n_secondary_comparisons    <- n_secondary_analyses * n_comparisons_per_analysis  # 36
 
-panel_sec <- panel_test |>
+panel_sec <- panel |>
   mutate(sec_1 = if_else(scenario_sum > 11, 1, 0))
 
 panel_sec |>
@@ -592,7 +592,7 @@ resultat_pate_so3_2
 ## NB: the protocol text (see comments above, line 55-64) describes
 ## trustworthiness as a 1-10 Likert scale and perceived_usefulness /
 ## intention_to_share as 1-5 Likert scales. The actual variables in
-## panel_test are ordered FACTORS with fewer levels: trustworthiness has 5
+## panel are ordered FACTORS with fewer levels: trustworthiness has 5
 ## levels ("Very little".."Very much"), and perceived_usefulness /
 ## intention_to_share each have 4 levels ("Strongly disagree".."Strongly
 ## agree") -- not numeric 1-10/1-5 scores. Flagging this discrepancy for the

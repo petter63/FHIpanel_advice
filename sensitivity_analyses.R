@@ -1,10 +1,10 @@
 # Sensitivity analyses for primary outcome (SATE)
 ## All persons with missing data have only failure or only success out of 15 answers
 
-panel_test <- readRDS("panel_test.rds")
+panel <- readRDS("panel_test.rds")
 
 # All with missing data is coded with failure on every answer
-sens_0 <- panel_test |>
+sens_0 <- panel |>
   mutate(sc1_1 = if_else(scenario1_item1 %in% c("Likely", "Very likely"), 1, 0),
          sc1_2 = if_else(scenario1_item2_careful %in% c("Likely", "Very likely"), 1, 0),
          sc1_3 = if_else(scenario1_item3_normal %in% c("Very unlikely", "Unlikely"), 1, 0),
@@ -173,10 +173,10 @@ resultat
 
 #-------------------------------------------------------------------------------
 
-panel_test <- readRDS("panel_test.rds")
+panel <- readRDS("panel_test.rds")
 
 # All with missing data is coded with failure on every answer
-sens_1 <- panel_test |>
+sens_1 <- panel |>
   mutate(sc1_1 = if_else(scenario1_item1 %in% c("Likely", "Very likely"), 1, 0),
          sc1_2 = if_else(scenario1_item2_careful %in% c("Likely", "Very likely"), 1, 0),
          sc1_3 = if_else(scenario1_item3_normal %in% c("Very unlikely", "Unlikely"), 1, 0),

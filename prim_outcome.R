@@ -19,9 +19,9 @@ library(gt)
 # 1. Code correct answers and build the outcome (successes / failures out of 15)
 # -------------------------------------------------------------------------
 
-panel_test <- readRDS("panel_test.rds")
+panel <- readRDS("panel_test.rds")
 
-panel_test <- panel_test |>
+panel <- panel |>
   filter(!is.na(answer_time_ms)) |>
   mutate(sc1_1 = if_else(scenario1_item1 %in% c("Likely", "Very likely"), 1, 0),
          sc1_2 = if_else(scenario1_item2_careful %in% c("Likely", "Very likely"), 1, 0),
@@ -53,10 +53,10 @@ panel_test <- panel_test |>
   # Reference arm for all comparisons
   mutate(arm = relevel(factor(arm), ref = "V1_control"))
 
-range(panel_test$scenario_sum)
-range(panel_test$scenario_fail)
+range(panel$scenario_sum)
+range(panel$scenario_fail)
 
-panel_test |>
+panel |>
   group_by(arm) |>
   summarise(
     mean   = mean(scenario_sum, na.rm = TRUE),
@@ -72,13 +72,13 @@ panel_test |>
 fit_rr <- glm(
   cbind(scenario_sum, scenario_fail) ~ arm,
   family = binomial(link = "log"),
-  data = panel_test
+  data = panel
 )
 
 summary(fit_rr)
 
 # number of correct answers in each arm
-panel_test |>
+panel |>
   group_by(arm) |>
   summarise(
     correct = sum(scenario_sum),
@@ -289,17 +289,17 @@ gtsave_safe(resultat_gt, file.path(results_dir, "table3_primary_outcome_RR.html"
 panel_weighting <- readRDS("panel_weighting.rds") |>
   select(participant_id, weight)
 
-panel_test_w <- panel_test |>
+panel_w <- panel |>
   left_join(panel_weighting, by = "participant_id")
 
-n_unmatched <- sum(is.na(panel_test_w$weight))
+n_unmatched <- sum(is.na(panel_w$weight))
 if (n_unmatched > 0) {
-  warning(n_unmatched, " respondent(s) in panel_test have no matching weight ",
+  warning(n_unmatched, " respondent(s) in panel have no matching weight ",
           "in panel_weighting.rds -- check that weighting.R was run on the ",
           "same panel_test.rds.")
 }
 
-itemized_w <- panel_test_w |>
+itemized_w <- panel_w |>
   select(participant_id, arm, weight,
          sc1_1, sc1_2, sc1_3, sc2_1, sc2_2, sc2_3, sc3_1, sc3_2, sc3_3,
          sc4_1, sc4_2, sc4_3, sc5_1, sc5_2, sc5_3) |>
@@ -378,7 +378,7 @@ resultat_pate
 #      weighted mean), to sit alongside the PATE RR/RD above.
 # -------------------------------------------------------------------------
 
-crude_sate <- panel_test |>
+crude_sate <- panel |>
   group_by(arm) |>
   summarise(correct = sum(scenario_sum), total = sum(scenario_sum + scenario_fail)) |>
   mutate(sate_np = sprintf("%d/%d (%.1f%%)", correct, total, 100 * correct / total))

@@ -2,7 +2,7 @@
 ## One analysis performed as described in prim_outcome.R (log-binomial RR vs.
 ## V1_control, Bonferroni-adjusted for 3 comparisons), for each level of the
 ## following subgroups. Mapping decisions agreed with study team (native
-## panel_test categories don't align exactly with the originally-planned
+## panel categories don't align exactly with the originally-planned
 ## bins -- see notes at each variable below):
 #
 # Age group (native age_group has 6x 10-year bins from 16; collapsed to 3):
@@ -20,7 +20,7 @@
 
 # ------------------------------------------------------------------------------
 # Start by running descreptive_analysis.R (to start a new result folder) and
-## run prim_outcome.R (to ensure correct variables in the data frame panel_test)
+## run prim_outcome.R (to ensure correct variables in the data frame panel)
 
 # ------------------------------------------------------------------------------
 
@@ -33,10 +33,10 @@ library(lmtest)
 library(gt)
 
 required_cols <- c("scenario_sum", "scenario_fail", "arm", "age_group", "gender", "education")
-missing_cols <- setdiff(required_cols, names(panel_test))
+missing_cols <- setdiff(required_cols, names(panel))
 if (length(missing_cols) > 0) {
   stop(
-    "panel_test is missing: ", paste(missing_cols, collapse = ", "),
+    "panel is missing: ", paste(missing_cols, collapse = ", "),
     ". Run prim_outcome.R (section 1) first to build the outcome variables."
   )
 }
@@ -45,7 +45,7 @@ if (length(missing_cols) > 0) {
 # 1. Define subgroup variables
 # -------------------------------------------------------------------------
 
-panel_sub <- panel_test |>
+panel_sub <- panel |>
   mutate(
     age_group_3 = case_when(
       age_group %in% c("16-24", "25-34")        ~ "<35",

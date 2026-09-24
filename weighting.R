@@ -8,7 +8,7 @@
 #  - "Utdanningsnivaa for personer 16 aar og eldre.csv": Utdanningsniva,
 #    2020 and 2025, whole country, ages 16+.
 #
-# Cleaning decisions confirmed with the user (2026-09-21):
+# Decisions to fit survey data to SSB (2026-09-21):
 #  - Education: the population table only has 4 levels (no split of
 #    university/college into short/long cycle), so the survey's 5-level
 #    `education` factor is collapsed to 4 levels to match, by merging
@@ -32,7 +32,7 @@ library(survey)
 
 pop_dir <- "C:/Users/peel/OneDrive - Folkehelseinstituttet/Studier/Panel_smittevernraad"
 
-panel_test <- readRDS("panel_test.rds")
+panel <- readRDS("panel_test.rds")
 
 ## ---- 1. Build population margins ------------------------------------------
 
@@ -114,7 +114,7 @@ edu_pop <- edu_raw |>
 
 ## ---- 2. Prepare survey data for raking -------------------------------------
 
-panel_weighting <- panel_test |>
+panel_weighting <- panel |>
   mutate(
     # Collapse to 4 levels to match the population education margin;
     # `education` (5 levels) is left untouched for descriptive use.
