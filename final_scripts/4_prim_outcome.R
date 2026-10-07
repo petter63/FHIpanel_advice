@@ -19,7 +19,7 @@ library(gt)
 # 1. Code correct answers and build the outcome (successes / failures out of 15)
 # -------------------------------------------------------------------------
 
-panel <- readRDS("panel_test.rds")
+panel <- readRDS("panel_data.rds")
 
 panel <- panel |>
   filter(!is.na(answer_time_ms)) |>

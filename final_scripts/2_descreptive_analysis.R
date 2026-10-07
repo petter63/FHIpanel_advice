@@ -11,7 +11,7 @@
 # work unchanged.
 library(skimr)
 
-panel <- readRDS("panel_test.rds")
+panel <- readRDS("panel_data.rds")
 str(panel)
 skimr::skim(panel)
 
@@ -52,26 +52,25 @@ n_total <- nrow(panel)
 # consenting, so there is no "Excluded" box between Consented and
 # Randomised.
 n_invited    <- 2160
-n_consented  <- 1016
+n_consented  <- n_total
 n_randomised <- n_consented
 
 # Short description of what each arm actually received, per the trial protocol.
 arm_descriptions <- c(
-  V1_control              = "Current formulation (control)",
-  V2_sentence             = "Added sentence about when it is okay to participate in activities or go to work",
-  V3_definitions          = "Added definitions of key terms",
-  V4_sentence_definitions = "Added sentence about activities/work + added definitions of key terms"
+  V1_control              = "Blinded: Current formulation (control)",
+  V2_sentence             = "Blinded: Added sentence about when it is okay to participate in activities or go to work",
+  V3_definitions          = "Blinded: Added definitions of key terms",
+  V4_sentence_definitions = "Blinded: Added sentence about activities/work + added definitions of key terms"
 )
 
 # Real allocation counts per arm (via the blinded file -> arm mapping in
 # final_scripts/1_organize_data.R -- see panel_enrolment.rds there for the
-# true per-file randomised totals). Analysed counts are read straight off
-# `panel` rather than hardcoded, so this box can't drift out of sync with
-# the data actually loaded. Missing data (Allocation -> Analysis) is simply
-# the difference between the two; the four raw export files contain only
-# completed submissions, so this "missing" count is NOT observable in
-# `panel` itself (nobody there has a missing outcome) -- it only shows up
-# via this Allocated-vs-Analysed gap.
+# true per-file randomised totals). `panel` now contains one row per
+# RANDOMISED participant per arm (1_organize_data.R pads the real completer
+# rows back up to n_allocated_by_arm with placeholder "missing" rows, blank
+# except participant_id/arm/included) -- so table(panel$arm) alone would
+# just reproduce n_allocated_by_arm, not the analysed count. "Analysed"
+# instead means rows with actual outcome data, i.e. answer_time_ms present.
 n_allocated_by_arm <- readRDS("panel_enrolment.rds")
 n_analysed_by_arm  <- panel |>
   filter(!is.na(answer_time_ms)) |>
