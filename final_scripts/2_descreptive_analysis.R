@@ -1,14 +1,8 @@
 #-------------------------------------------------------------------------------
 # Project: FHI-panel effectiveness of infection prevention recommendations
 #-------------------------------------------------------------------------------
-# Load and describe test-data
-# NB: the data frame is named "panel" from here on (loaded from
-# panel_test.rds, which is still produced by simulate_panel_test.R /
-# clean_panel_test.R under the name panel_test) -- once real study data
-# is available, simply load it into a data frame also named "panel" and
-# all downstream scripts (missing_data.R, weighting.R, prim_outcome.R,
-# secondary_outcome.R, subgroup_analysis.R, sensitivity_analyses.R) will
-# work unchanged.
+# Load and describe study data
+# NB: the data frame is named "panel" from here on. 
 library(skimr)
 
 panel <- readRDS("panel_data.rds")
@@ -16,7 +10,7 @@ str(panel)
 skimr::skim(panel)
 
 #-------------------------------------------------------------------------------
-# CONSORT flow diagram
+# Generating result subfolder for each run
 #-------------------------------------------------------------------------------
 library(dplyr)
 library(ggplot2)
@@ -47,8 +41,12 @@ writeLines(
 
 n_total <- nrow(panel)
 
+
+#-------------------------------------------------------------------------------
+# CONSORT flow diagram
+#-------------------------------------------------------------------------------
 # ---- Enrolment counts -------------------------------------------------------
-# Real study flow (not the simulated test data): nobody was excluded after
+# Real study flow: nobody was excluded after
 # consenting, so there is no "Excluded" box between Consented and
 # Randomised.
 n_invited    <- 2160
@@ -56,21 +54,20 @@ n_consented  <- n_total
 n_randomised <- n_consented
 
 # Short description of what each arm actually received, per the trial protocol.
+# Will be changed with real allocated arms and correct names after unblinding
 arm_descriptions <- c(
-  V1_control              = "Blinded: Current formulation (control)",
-  V2_sentence             = "Blinded: Added sentence about when it is okay to participate in activities or go to work",
-  V3_definitions          = "Blinded: Added definitions of key terms",
-  V4_sentence_definitions = "Blinded: Added sentence about activities/work + added definitions of key terms"
+  V1_control              = "Blinded (control)", # Current formulation (control)",
+  V2_sentence             = "Blinded", # Added sentence about when it is okay to participate in activities or go to work",
+  V3_definitions          = "Blinded", # Added definitions of key terms",
+  V4_sentence_definitions = "Blinded" # Added sentence about activities/work + added definitions of key terms"
 )
 
 # Real allocation counts per arm (via the blinded file -> arm mapping in
-# final_scripts/1_organize_data.R -- see panel_enrolment.rds there for the
-# true per-file randomised totals). `panel` now contains one row per
+# final_scripts/1_organize_data.R for the
+# true per-file randomized totals). `panel` now contains one row per
 # RANDOMISED participant per arm (1_organize_data.R pads the real completer
 # rows back up to n_allocated_by_arm with placeholder "missing" rows, blank
-# except participant_id/arm/included) -- so table(panel$arm) alone would
-# just reproduce n_allocated_by_arm, not the analysed count. "Analysed"
-# instead means rows with actual outcome data, i.e. answer_time_ms present.
+# except participant_id/arm/included).
 n_allocated_by_arm <- readRDS("panel_enrolment.rds")
 n_analysed_by_arm  <- panel |>
   filter(!is.na(answer_time_ms)) |>
@@ -245,18 +242,17 @@ ggsave(
 )
 
 #-------------------------------------------------------------------------------
-# Table 1: Baseline characteristics and behaviours
+# Table 1: Baseline characteristics and behaviors
 #-------------------------------------------------------------------------------
 library(tidyr)
 library(purrr)
 library(forcats)
 library(readr)
 
-# Table 1 describes the whole randomised/allocated sample (not just the
-# analysed subset), so participants with missing outcome data (dropouts;
-# see simulate_panel_test.R -- these rows are missing every field, not
-# just the outcome items) show up as an explicit "Missing" category per
-# characteristic below, rather than being silently excluded.
+# Table 1 describes the whole randomized/allocated sample (not just the
+# analysed subset), so participants with missing outcome data show up as an 
+# explicit "Missing" category per characteristic below, rather than being 
+# silently excluded.
 baseline_pop <- panel |>
   rename("Age group" = "age_group",
          "Gender" = "gender",
@@ -273,10 +269,9 @@ baseline_vars <- c(
   "Contact high risk patients", "Can work from home", "Baseline behaviour"
 )
 
-# Only these three are actually skip-logic-routed (asked only of employed
-# participants; see simulate_panel_test.R / clean_panel_test.R) -- for every
-# other baseline variable, *everyone* is asked the question, so any NA there
-# can only be a dropout (missing_flag), never a routing outcome.
+# These three variables are skip-logic-routed (asked only of employed
+# participants. For every other baseline variable, *everyone* is asked the 
+# question, so any NA there is a dropout (missing_flag), not a routing outcome.
 routed_vars <- c("Baseline behaviour", "Contact high risk patients", "Can work from home")
 
 # Replace NA with an explicit category, distinguishing *why* it's missing:
@@ -335,11 +330,11 @@ table1 <- by_arm |>
   filter(Level != "Not applicable" | Characteristic %in% routed_vars)
 
 # "Reasons for working from home" is a second layer of skip logic nested
-# inside "Baseline behaviour": it's only asked of participants who answered
+# inside "Baseline behavior": it's only asked of participants who answered
 # "Worked from home" there (see reasons_home_office_* in clean_panel_test.R).
 # It's also a select-all-that-apply item (the four reasons aren't mutually
-# exclusive -- a participant can endorse several), so it can't be summarised
-# with prep_var()/summarise_by_arm() like the single-answer variables above:
+# exclusive -- a participant can endorse several), so it can't be summarized
+# with prep_var()/summarize_by_arm() like the single-answer variables above:
 # percentages are not expected to sum to 100% across its rows, and it's
 # handled as its own block below instead, then appended to table1.
 wfh_items <- tibble(
@@ -358,7 +353,7 @@ wfh_items <- tibble(
 )
 wfh_large_extent <- c("To a large extent", "To a very large extent")
 
-# Eligibility is driven by "Baseline behaviour" (not by employment status
+# Eligibility is driven by "Baseline behavior" (not by employment status
 # like the other routed_vars), so a dropout's NA there must not be read as
 # "not eligible" -- treat dropouts (missing_flag) separately from genuine
 # non-"Worked from home" answers.
@@ -431,7 +426,7 @@ wfh_rows <- bind_rows(wfh_yes_rows, wfh_na_rows) |>
   mutate(Level = as.character(Level)) |>
   select(Characteristic, Level, all_of(names(table1)[-(1:2)]))
 
-# Placed right after "Baseline behaviour", the question it's nested under.
+# Placed right after "Baseline behavior", the question it's nested under.
 table1 <- bind_rows(table1, wfh_rows)
 baseline_vars <- c(baseline_vars, "Reasons for working from home")
 routed_vars   <- c(routed_vars, "Reasons for working from home")

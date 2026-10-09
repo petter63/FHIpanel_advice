@@ -1,4 +1,4 @@
-## Read the four REAL, blinded raw survey-export files (one per study arm,
+## Read the four REAL, now-UNBLINDED raw survey-export files (one per study arm,
 ## "data/Smittevern re[s]sult[s]_{W,X,Y,Z}.xlsx") and clean them into the
 ## analysis-ready tibble structure the rest of the pipeline expects.
 ##
@@ -6,17 +6,26 @@
 ## "data/Smittevern_RCT_codebook and data dictionary.xlsx" (sheets
 ## "Detailed variable key" and "Derived outcomes"). A few things to flag:
 ##
-##  - CRITICAL (per the codebook's own "Review before analysis" sheet):
-##    the real, verified randomised allocation (which file/letter -> which
-##    of V1-V4) is *not* in the raw export, and is not known to whoever
-##    exported these files either -- the four files must be read and
-##    analysed BLINDED to arm. `arm` below is therefore assigned completely
+##  - UPDATE 2026-10-09: the allocation has now been UNBLINDED. The real,
+##    verified randomised allocation (confirmed by Heather EMM-K who holds the
+##    randomisation log) is: V1_control = file Z, V2_sentence = file Y,
+##    V3_definitions = file X, V4_sentence_definitions = file W. This real
+##    mapping is applied below, in the "Unblinded real allocation" section,
+##    and is what `arm` is actually built from from this point on -- every
+##    arm-stratified result produced from this file downstream now reflects
+##    the real allocation.
+##  - HISTORICAL (kept for the record, no longer used): until the line
+##    above, the real, verified randomised allocation (which file/letter ->
+##    which of V1-V4) was *not* in the raw export, and was not known to
+##    whoever exported these files either -- the four files had to be read
+##    and analysed BLINDED to arm. `arm` was therefore assigned completely
 ##    AT RANDOM, one arm per file, purely as a placeholder so the rest of
-##    the pipeline (which expects an `arm` column) runs end to end. This
-##    is NOT the real allocation and every arm-stratified result produced
-##    from this file is meaningless until the real randomisation log is
-##    obtained and merged in -- replace the random assignment below with
-##    it at that point.
+##    the pipeline (which expects an `arm` column) ran end to end. That
+##    random assignment (`file_arm_map_blinded_HISTORICAL` below) was NOT
+##    the real allocation, and every arm-stratified result produced while it
+##    was in effect was meaningless -- it is retained only so the blinding
+##    procedure that was used is documented, and is no longer fed into
+##    `panel_data`.
 ##  - The four files have a few per-file naming inconsistencies (a typo'd
 ##    column and inconsistent casing on the Scenario_3 items in
 ##    "Smittevern results_Y.xlsx"), normalised away below so the four
@@ -32,7 +41,7 @@
 ##    randomisation/enrolment log instead.
 ##  - Health_literacy is coded 1 = very difficult ... 4 = very easy (the
 ##    codebook flags this direction as differing from an earlier protocol
-##    description -- use the administered-form coding, as done here).
+##    description. Here the administered-form coding is used).
 ##  - High_risk correct options are {1, 2, 4, 6}; {3, 5} are incorrect
 ##    (suffixes follow the questionnaire's option numbers, not worksheet
 ##    order).
@@ -47,7 +56,7 @@ rm(list = ls())
 library(tidyverse)
 library(readxl)
 
-## ---- 1. Read the four raw files and tag each with a BLINDED, random arm --
+## ---- 1. Read the four raw files and tag each with the real, unblinded arm -
 
 data_dir <- file.path("data")
 
@@ -60,21 +69,41 @@ raw_files <- c(
   Z = file.path(data_dir, "Smittevern results_Z.xlsx")
 )
 
-# Blinded placeholder allocation: which file gets which arm label is random,
-# not the real (unknown, to us) randomization -- see header note. Seeded
-# only so re-running this script doesn't reshuffle the placeholder mapping
-# underneath an already-started analysis; it carries no other meaning.
+# HISTORICAL -- retained to document how the arms were blinded while the
+# real allocation was unknown. No longer used to build `panel_data` (see
+# "Unblinded real allocation" below, which overrides this with the real
+# file -> arm mapping). Kept under its own name, and still seeded, purely so
+# this historical artefact stays reproducible if ever inspected again.
 set.seed(8421)
-file_arm_map <- setNames(sample(arm_levels), names(raw_files))
+file_arm_map_blinded_HISTORICAL <- setNames(sample(arm_levels), names(raw_files))
+file_arm_map_blinded_HISTORICAL
+
+# ------------------------------------------------------------------------------
+# Unblinded real allocation
+# ------------------------------------------------------------------------------
+## Real, verified randomised allocation (file letter -> arm), confirmed
+## 2026-10-09 by Heather M-K who holds the randomisation log:
+##   V1_control               = Z
+##   V2_sentence               = Y
+##   V3_definitions            = X
+##   V4_sentence_definitions   = W
+## This is the mapping actually used to build `panel_data$arm` from here on
+## -- it replaces `file_arm_map_blinded_HISTORICAL` above.
+file_arm_map <- c(
+  Z = "V1_control",
+  Y = "V2_sentence",
+  X = "V3_definitions",
+  W = "V4_sentence_definitions"
+)
+file_arm_map <- file_arm_map[names(raw_files)]  # keep W, X, Y, Z order
+stopifnot(setequal(file_arm_map, arm_levels))
 file_arm_map
 
-# True total randomised per FILE (not per arm -- the real randomisation log
-# itself is still not available, see header note), supplied 2026-10-05:
-# 260 (Z), 250 (Y), 251 (X), 255 (W). Mapped through the same blinded
-# file -> arm assignment above so the CONSORT counts stay consistent with
-# whatever that random mapping happens to be. If file_arm_map above ever
-# changes (different seed, different sample() call, etc.) this stays
-# correct automatically since it's keyed off the same object.
+# True total randomised per FILE (not per arm), supplied 2026-10-05:
+# 260 (Z), 250 (Y), 251 (X), 255 (W). Mapped through the real (now
+# unblinded) file -> arm assignment above so the CONSORT counts reflect the
+# true allocation.
+
 n_allocated_by_file <- c(W = 255, X = 251, Y = 250, Z = 260)
 stopifnot(sum(n_allocated_by_file) == 1016)  # matches total consented/randomised
 n_allocated_by_arm  <- setNames(n_allocated_by_file[names(file_arm_map)], file_arm_map)
@@ -168,7 +197,7 @@ enough_info_order   <- c("2", "1", "5", "4", "3")
 
 ## ---- Comprehension scenario items -----------------------------------------
 
-# Column names/casing are fixed per scenario (now normalised across files,
+# Column names/casing are fixed per scenario (now normalized across files,
 # see above); all three items per scenario share the same "likelihood"
 # response scale.
 scenario_cols <- tribble(
@@ -317,22 +346,22 @@ panel_data <- panel_data |>
   ))
 
 # Complete-case version: one row per actual survey completion, no
-# placeholder rows for the randomised-but-missing participants added below.
+# placeholder rows for the randomized-but-missing participants added below.
 # Kept as a separate artifact for reference/debugging -- the rest of the
 # pipeline reads "panel_test.rds" (below), not this file.
 saveRDS(panel_data, "panel_cc.rds")
 
-## ---- Add back the randomised-but-missing participants ---------------------
+## ---- Add back the randomized-but-missing participants ---------------------
 # The four raw export files contain only completed submissions (see header
-# note) -- respondents who were randomised but never answered (or dropped
+# note) -- respondents who were randomized but never answered (or dropped
 # out before) the survey simply aren't rows in them at all. Every downstream
-# script, however, expects `panel` to contain ALL randomised participants
+# script, however, expects `panel` to contain ALL randomized participants
 # per arm (that's what the CONSORT "Missing data" box and Table 1's
 # explicit "Missing" row are built from -- see simulate_panel_test.R's
 # convention, replicated here: a missing-outcome row has every field blank
 # except participant_id/arm/included). Pad each arm back up to its true
 # n_allocated_by_arm with such placeholder rows so per-arm row counts in
-# the analysis dataset match the real randomisation counts.
+# the analysis dataset match the real randomization counts.
 n_completers_by_arm <- table(panel_data$arm)[names(n_allocated_by_arm)]
 n_missing_by_arm     <- n_allocated_by_arm - as.integer(n_completers_by_arm)
 stopifnot(all(n_missing_by_arm >= 0))   # completers can't exceed those allocated
@@ -346,7 +375,7 @@ missing_rows <- map_dfr(names(n_missing_by_arm), function(a) {
     # (not even a submission id), unlike real participant_ids ("P<digits>").
     participant_id = paste0("MISSING_", a, "_", seq_len(n_miss)),
     arm            = a,
-    # Randomised (hence counted in n_allocated) implies they met the
+    # Randomized (hence counted in n_allocated) implies they met the
     # inclusion criteria -- everything else about them is unobserved.
     included       = TRUE
   )
@@ -361,16 +390,11 @@ stopifnot(all(as.integer(table(panel_data$arm)[names(n_allocated_by_arm)]) == n_
 panel_data |> count(arm)
 
 # Saved under the SAME filename the rest of the pipeline already expects
-# (see the "NB" note at the top of descreptive_analysis.R: every downstream
-# script reads `panel <- readRDS("panel_test.rds")`) so no other script
-# needs to change to run on this real, blinded data. This overwrites the
-# simulated test fixture -- re-run simulate_panel_test.R + the previous
-# version of this script (or restore from version control) to get it back.
 saveRDS(panel_data, "panel_data.rds")
 
 # Real per-arm "allocated" counts (via the blinded file -> arm mapping
 # above), for the CONSORT flow chart in descreptive_analysis.R. Now also
-# directly verifiable as table(panel_test$arm), but kept as its own small
+# directly verifiable as table(panel_data$arm), but kept as its own small
 # file since that's where the "true" number originates (and it's cheap
-# insurance against panel_test.rds being rebuilt differently later).
+# insurance against panel_data.rds being rebuilt differently later).
 saveRDS(n_allocated_by_arm, "panel_enrolment.rds")

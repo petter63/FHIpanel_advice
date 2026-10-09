@@ -532,7 +532,12 @@ panel_sec <- panel_sec |>
 
 panel_sec |>
   group_by(arm) |>
-  summarise(n = n(), n_correct = sum(sec_7), pct = 100 * mean(sec_7))
+  summarise(
+    n = n(),
+    n_missing = sum(is.na(sec_7)),
+    n_correct = sum(sec_7, na.rm = TRUE),
+    pct = 100 * mean(sec_7, na.rm = TRUE)
+  )
 
 so2_1_results <- analyse_secondary_binary(panel_sec, "sec_7", panel_weighting, n_comparisons = 3)
 
@@ -707,7 +712,12 @@ design_w_all <- svydesign(ids = ~participant_id, weights = ~weight, data = panel
 describe_outcome <- function(outcome) {
   crude <- panel_sec |>
     group_by(arm) |>
-    summarise(correct = sum(.data[[outcome]]), total = n(), .groups = "drop") |>
+    summarise(
+      correct = sum(.data[[outcome]], na.rm = TRUE),
+      missing = sum(is.na(.data[[outcome]])),
+      total   = n() - missing,
+      .groups = "drop"
+    ) |>
     mutate(sate_np = sprintf("%d/%d (%.1f%%)", correct, total, 100 * correct / total))
 
   calibrated <- svyby(as.formula(paste0("~", outcome)), ~arm, design_w_all, svymean) |>

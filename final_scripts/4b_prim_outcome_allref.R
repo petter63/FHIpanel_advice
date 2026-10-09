@@ -13,7 +13,7 @@
 ## for the 3 comparisons vs. THAT table's reference arm, exactly as in
 ## 4_prim_outcome.R. Looked at together, the 4 tables contain 12 rows but
 ## only 6 unique arm pairs (each pair is estimated twice, once from each
-## arm's side as reference) -- if you interpret results ACROSS the 4
+## arm's side as reference) -- if we interpret results ACROSS the 4
 ## tables rather than reading one at a time, the effective number of
 ## comparisons under consideration is larger than 3 and a stricter
 ## correction (e.g. Bonferroni for the 6 unique pairs, ignoring the

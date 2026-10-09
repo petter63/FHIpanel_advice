@@ -31,7 +31,7 @@
 #    small cell in this highly-educated panel relative to its national
 #    population share). This inflated the design effect to ~4-9x, cutting
 #    the effective sample size by up to ~89% in one arm. Raw weights are
-#    trimmed at the 95th percentile within each arm and renormalised to
+#    trimmed at the 95th percentile within each arm and normalized to
 #    mean 1, trading a small amount of residual under-coverage bias for
 #    the low-education group against a large reduction in variance. Both
 #    the untrimmed (`weight_raw`) and trimmed (`weight`) weights are kept
