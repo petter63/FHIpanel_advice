@@ -56,10 +56,10 @@ n_randomised <- n_consented
 # Short description of what each arm actually received, per the trial protocol.
 # Will be changed with real allocated arms and correct names after unblinding
 arm_descriptions <- c(
-  V1_control              = "Blinded (control)", # Current formulation (control)",
-  V2_sentence             = "Blinded", # Added sentence about when it is okay to participate in activities or go to work",
-  V3_definitions          = "Blinded", # Added definitions of key terms",
-  V4_sentence_definitions = "Blinded" # Added sentence about activities/work + added definitions of key terms"
+  V1_control              = "Current formulation (control)",
+  V2_sentence             = "Added sentence about when it is okay to participate in activities or go to work",
+  V3_definitions          = "Added definitions of key terms",
+  V4_sentence_definitions = "Added sentence about activities/work + added definitions of key terms"
 )
 
 # Real allocation counts per arm (via the blinded file -> arm mapping in

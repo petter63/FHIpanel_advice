@@ -72,17 +72,23 @@
 ## run prim_outcome.R (to ensure correct variables in panel)
 
 # -------------------------------------------------------------------------
-# Multiplicity across the secondary-outcome family
+# Multiplicity: decision
 # -------------------------------------------------------------------------
 ## The protocol specifies 12 secondary analyses (across 6 research
-## questions), each mirroring the primary analysis with 3 pairwise
-## comparisons of active arms vs. V1_control -> 12 x 3 = 36 comparisons make
-## up the secondary family. Define this once and reuse it consistently
-## across all 12 analysis sections/scripts (see the multiplicity note after
-## SO1_1 below for how to use it).
+## questions), each with 3 pairwise comparisons of active arms vs.
+## V1_control -> 12 x 3 = 36 comparisons in total. Per decision, multiplicity
+## is corrected ONLY within each individual analysis (Bonferroni, m = 3, for
+## the 3 comparisons to the 4-arm control), and NOT across the 12 secondary
+## analyses themselves -- the 12 analyses are treated as addressing 6
+## distinct research questions rather than 12 looks at the same question, so
+## no family-wise correction is applied across them. `n_comparisons_per_analysis`
+## (3) is the only Bonferroni divisor used anywhere in this script;
+## `n_secondary_analyses`/`n_secondary_comparisons` are kept purely for
+## bookkeeping (reporting "12 analyses, 36 comparisons" and sanity-checking
+## table row counts).
 n_secondary_analyses       <- 12
 n_comparisons_per_analysis <- 3
-n_secondary_comparisons    <- n_secondary_analyses * n_comparisons_per_analysis  # 36
+n_secondary_comparisons    <- n_secondary_analyses * n_comparisons_per_analysis  # 36, reporting only
 
 panel_sec <- panel |>
   mutate(sec_1 = if_else(scenario_sum > 11, 1, 0))
@@ -118,10 +124,11 @@ coeftest(fit_rr_so1_1, vcov = V_so1_1)
 # -------------------------------------------------------------------------
 # SO1_1b. Bonferroni adjustment (within-analysis: 3 comparisons)
 # -------------------------------------------------------------------------
-## `m_so1_1` here is the number of comparisons THIS analysis contributes.
-## To correct across the FULL secondary family instead, replace `m_so1_1`
-## with `n_secondary_comparisons` when computing alpha_bonf_so1_1 /
-## z_crit_so1_1 -- see the multiplicity note at the end of this section.
+## `m_so1_1` = 3, the number of pairwise comparisons (active arms vs.
+## V1_control) within THIS analysis. Per the multiplicity decision above,
+## this within-analysis Bonferroni correction is the only adjustment
+## applied -- there is no further correction across the 12 secondary
+## analyses.
 
 beta_so1_1 <- coef(fit_rr_so1_1)[-1]
 se_so1_1   <- sqrt(diag(V_so1_1))[-1]
@@ -242,46 +249,14 @@ resultat_pate_so1_1
 # -------------------------------------------------------------------------
 # NOTE on multiplicity across all 12 secondary analyses
 # -------------------------------------------------------------------------
-## The Bonferroni correction above (m = 3) only accounts for the 3 pairwise
-## comparisons WITHIN SO1_1, exactly as in prim_outcome.R -- it does NOT yet
-## account for running 12 such analyses (36 comparisons in total). Three
-## options, in increasing order of statistical power (decreasing
-## conservativeness):
-##
-## 1. Strict Bonferroni across all 36 comparisons: replace `m_so1_1` /
-##    `m_pate_so1_1` with `n_secondary_comparisons` (36) everywhere above.
-##    Exact FWER control, but alpha = 0.05/36 = 0.0014 per test is very
-##    conservative -- CIs widen and adjusted p-values inflate substantially.
-##    Use if ALL 12 secondary analyses are pre-specified as confirmatory.
-##
-## 2. Holm-Bonferroni step-down across the pooled 36 raw p-values: also
-##    controls the FWER exactly, but is uniformly more powerful than plain
-##    Bonferroni. Requires pooling all 36 raw p-values FIRST, then adjusting
-##    once (sketch below). A common compromise in practice: keep the CIs at
-##    the Bonferroni (m = 36) width for a conservative interval estimate,
-##    but report Holm-adjusted p-values for the significance decision.
-##
-## 3. Benjamini-Hochberg (FDR) across the pooled 36 raw p-values:
-##    controls the expected proportion of false positives among results
-##    declared "significant", rather than the probability of any false
-##    positive at all. Noticeably more powerful than Bonferroni or Holm.
-##    Appropriate if the 12 secondary analyses are treated as
-##    hypothesis-generating/exploratory rather than confirmatory -- the
-##    usual framing for secondary endpoints (ICH E9).
-##
-## Pooling sketch, to run once at the very end after all 12 sections'
-## fit_rr_soX_Y / fit_pate_soX_Y models exist:
-##
-##   p_raw_all  <- c(p_raw_so1_1, p_raw_so1_2, ..., p_raw_so6_2)  # length 36
-##   p_holm_all <- p.adjust(p_raw_all, method = "holm")
-##   p_bh_all   <- p.adjust(p_raw_all, method = "BH")
-##
-## Decide (and pre-register in the SAP) which of the three is used BEFORE
-## looking at results -- the choice materially changes which comparisons
-## cross the significance threshold. Given 12 distinct research questions
-## rather than 12 looks at the same question, Holm or BH across the pooled
-## 36 tests is a defensible, less-conservative alternative to strict
-## Bonferroni; confirm the choice with whoever owns the SAP.
+## Per decision, no correction is applied across the 12 secondary analyses
+## (36 comparisons). Each analysis stands on its own, corrected only for its
+## 3 within-analysis pairwise comparisons vs. V1_control (m = 3, as above) --
+## i.e. option used here is "no family-wise adjustment across analyses",
+## distinct from (and less conservative than) adjusting across all 36
+## comparisons. This mirrors treating the 12 analyses as addressing 6
+## distinct, pre-specified research questions rather than repeated looks at
+## one question.
 
 # -------------------------------------------------------------------------
 # SO1_2 - SO1_6. Intended behaviour within each individual scenario
@@ -321,10 +296,10 @@ recode_comparison <- function(term) {
 ## Fits both the SATE (log-binomial GLM, HC3 SEs) and PATE (svyglm,
 ## post-stratification-weighted) models for a single 0/1 outcome variable,
 ## and returns Bonferroni-adjusted RR/RD tables for both, mirroring SO1_1's
-## logic exactly. `n_comparisons` sets the divisor for the Bonferroni
-## correction: 3 for within-analysis correction (as used for SO1_1), or
-## `n_secondary_comparisons` (36) to correct across the full secondary
-## family instead -- see the multiplicity note above.
+## logic exactly. `n_comparisons` sets the divisor for the within-analysis
+## Bonferroni correction -- kept at 3 (the 3 comparisons to V1_control)
+## throughout this script, per the multiplicity decision above: no
+## correction is applied across the 12 secondary analyses.
 analyse_secondary_binary <- function(data, outcome, panel_weighting,
                                       n_comparisons = 3) {
   data <- data |> mutate(.outcome = .data[[outcome]])
@@ -456,10 +431,10 @@ analyse_secondary_binary <- function(data, outcome, panel_weighting,
 }
 
 ## Run SO1_2 - SO1_6 (scenarios 1-5) with a single Bonferroni divisor
-## (n_comparisons) shared across the function calls. Kept at 3 (i.e.
-## within-analysis correction, consistent with SO1_1 above) by default --
-## change to n_secondary_comparisons to correct across all 12 analyses
-## instead; see the multiplicity note above SO1_2.
+## (n_comparisons) shared across the function calls. Kept at 3 throughout
+## (within-analysis correction only, consistent with SO1_1 above); no
+## correction is applied across the 12 secondary analyses, per the
+## multiplicity decision above.
 scenario_outcomes <- c(
   SO1_2 = "sec_2",  # scenario 1
   SO1_3 = "sec_3",  # scenario 2
@@ -492,26 +467,6 @@ so1_2_6_pate_combined <- purrr::imap_dfr(
   so1_2_6_results, ~ mutate(.x$resultat_pate, Analysis = .y, .before = 1)
 )
 so1_2_6_pate_combined
-
-# -------------------------------------------------------------------------
-# Pooled multiplicity adjustment across all 12 secondary analyses (sketch)
-# -------------------------------------------------------------------------
-## Once SO1_1 and SO1_2-SO1_6 (and the remaining SQ2-SQ6 analyses) have all
-## been run, pool their raw p-values and apply Holm or BH ONCE across the
-## full secondary family, per the multiplicity note above:
-##
-##   p_raw_all <- c(
-##     p_raw_so1_1, p_raw_pate_so1_1,
-##     purrr::map(so1_2_6_results, ~ .x$resultat$p_raw) |> unlist(),
-##     purrr::map(so1_2_6_results, ~ .x$resultat_pate$p_raw) |> unlist()
-##     # ... plus SQ2-SQ6 raw p-values once those scripts exist
-##   )
-##   p_holm_all <- p.adjust(p_raw_all, method = "holm")
-##   p_bh_all   <- p.adjust(p_raw_all, method = "BH")
-##
-## (Now that all 12 secondary analyses are implemented, this pooling is
-## carried out for real at the end of this script -- see the "Final
-## combined secondary-outcome results" section.)
 
 # -------------------------------------------------------------------------
 # SQ2. Understanding of the main purpose of the advice
@@ -653,21 +608,19 @@ resultat_pate_so5_3
 
 # ===========================================================================
 # FINAL COMBINED SECONDARY-OUTCOME RESULTS
-# 12 analyses (36 pairwise comparisons); multiplicity-adjusted
+# 12 analyses (36 pairwise comparisons); no correction across analyses
 # ===========================================================================
 ## All 12 secondary analyses are now implemented. This section:
-##  1. Re-fits every analysis with the Bonferroni divisor set to
-##     n_secondary_comparisons (36, i.e. the FULL secondary-outcome family,
-##     not just the 3 comparisons within each individual analysis), giving
-##     conservative Bonferroni-width 95% CIs for the PATE RR/RD.
-##  2. Pools the 36 raw PATE p-values and applies Holm-Bonferroni step-down
-##     correction ONCE across the pooled family -- more powerful than plain
-##     Bonferroni while still controlling the family-wise error rate exactly
-##     (see the multiplicity note earlier in this script for the rationale).
-##  3. Assembles one combined table (mirroring Table 4 from prim_outcome.R:
+##  1. Re-fits every analysis with the within-analysis Bonferroni divisor
+##     (n_comparisons_per_analysis = 3, i.e. only the 3 comparisons to
+##     V1_control within each individual analysis), giving Bonferroni (m=3)
+##     95% CIs and p values for the PATE RR/RD. No correction is applied
+##     across the 12 secondary analyses themselves (see the multiplicity
+##     decision earlier in this script).
+##  2. Assembles one combined table (mirroring Table 4 from prim_outcome.R:
 ##     crude/SATE n/N (%) per arm, calibrated/PATE % per arm, PATE RR/RD,
-##     and an adjusted p-value) across all 36 comparisons, and exports it
-##     as a publication-ready gt table.
+##     and Bonferroni-adjusted p value) across all 36 comparisons, and
+##     exports it as a publication-ready gt table.
 
 n_secondary_analyses       <- 12
 n_comparisons_per_analysis <- 3
@@ -691,10 +644,10 @@ secondary_outcomes_spec <- tibble::tribble(
 
 stopifnot(nrow(secondary_outcomes_spec) == n_secondary_analyses)
 
-# ---- 1. Re-fit all 12 analyses with the family-wide Bonferroni divisor ----
+# ---- 1. Re-fit all 12 analyses with the within-analysis Bonferroni divisor ----
 secondary_fits <- purrr::map(
   secondary_outcomes_spec$outcome,
-  ~ analyse_secondary_binary(panel_sec, .x, panel_weighting, n_comparisons = n_secondary_comparisons)
+  ~ analyse_secondary_binary(panel_sec, .x, panel_weighting, n_comparisons = n_comparisons_per_analysis)
 ) |>
   setNames(secondary_outcomes_spec$Analysis)
 
@@ -720,7 +673,7 @@ describe_outcome <- function(outcome) {
     ) |>
     mutate(sate_np = sprintf("%d/%d (%.1f%%)", correct, total, 100 * correct / total))
 
-  calibrated <- svyby(as.formula(paste0("~", outcome)), ~arm, design_w_all, svymean) |>
+  calibrated <- svyby(as.formula(paste0("~", outcome)), ~arm, design_w_all, svymean, na.rm = TRUE) |>
     as_tibble() |>
     rename(pct = !!outcome) |>
     mutate(pate_pct = sprintf("%.1f%%", 100 * pct))
@@ -761,25 +714,18 @@ secondary_summary <- purrr::map2_dfr(
 
 stopifnot(nrow(secondary_summary) == n_secondary_comparisons)
 
-# Holm-Bonferroni: pool all 36 raw PATE p-values and adjust once. p.adjust()
-# returns adjusted values aligned to the input order, so this can be added
-# as a column directly.
+# Each row already carries its own within-analysis Bonferroni-adjusted
+# (m = 3) p value from analyse_secondary_binary(); no pooling across the 12
+# analyses is performed, per the multiplicity decision above.
 secondary_summary <- secondary_summary |>
-  mutate(
-    p_holm = p.adjust(p_raw, method = "holm"),
-    `Holm-Bonferroni-adjusted p value` = case_when(
-      p_holm < 0.001 ~ "<0.001",
-      TRUE ~ sprintf("%.3f", p_holm)
-    ),
-    Group = paste0(Analysis, ". ", Description)
-  ) |>
+  mutate(Group = paste0(Analysis, ". ", Description)) |>
   select(
     Group, Comparison,
     `SATE, n/N (%) control`, `SATE, n/N (%) intervention`,
     `PATE, calibrated % control`, `PATE, calibrated % intervention`,
-    `PATE RR (95% Bonferroni-width CI)` = `PATE RR (95% Bonferroni-adjusted CI)`,
-    `PATE RD (95% Bonferroni-width CI, pct. points)` = `PATE RD (95% Bonferroni-adjusted CI, pct. points)`,
-    `Holm-Bonferroni-adjusted p value`
+    `PATE RR (95% Bonferroni-adjusted CI)`,
+    `PATE RD (95% Bonferroni-adjusted CI, pct. points)`,
+    `Bonferroni-adjusted p value`
   )
 
 secondary_summary
@@ -791,8 +737,8 @@ secondary_gt <- secondary_summary |>
     title = "Table 5. Secondary outcomes: population average treatment effect (PATE) vs. V1 (control)",
     subtitle = paste0(
       "12 secondary analyses (36 pairwise comparisons); post-stratification-weighted (age, gender, ",
-      "education) log-binomial / modified-Poisson regression; 95% CIs at Bonferroni width ",
-      "(alpha = 0.05/36); p values Holm-Bonferroni-adjusted across all 36 comparisons"
+      "education) log-binomial / modified-Poisson regression; 95% CIs and p values Bonferroni-adjusted ",
+      "within each analysis (alpha = 0.05/3); no correction applied across the 12 secondary analyses"
     )
   ) |>
   cols_label(
@@ -801,17 +747,17 @@ secondary_gt <- secondary_summary |>
     `SATE, n/N (%) intervention` = "SATE, n/N (%): intervention",
     `PATE, calibrated % control` = "PATE, calibrated %: control",
     `PATE, calibrated % intervention` = "PATE, calibrated %: intervention",
-    `PATE RR (95% Bonferroni-width CI)` = "PATE RR (95% Bonferroni-width CI)",
-    `PATE RD (95% Bonferroni-width CI, pct. points)` = "PATE RD, pct. points (95% Bonferroni-width CI)",
-    `Holm-Bonferroni-adjusted p value` = "Holm-Bonferroni-adjusted p value"
+    `PATE RR (95% Bonferroni-adjusted CI)` = "PATE RR (95% Bonferroni-adjusted CI)",
+    `PATE RD (95% Bonferroni-adjusted CI, pct. points)` = "PATE RD, pct. points (95% Bonferroni-adjusted CI)",
+    `Bonferroni-adjusted p value` = "Bonferroni-adjusted p value"
   ) |>
   cols_align(align = "left", columns = Comparison) |>
   cols_align(align = "center", columns = c(
     `SATE, n/N (%) control`, `SATE, n/N (%) intervention`,
     `PATE, calibrated % control`, `PATE, calibrated % intervention`,
-    `PATE RR (95% Bonferroni-width CI)`,
-    `PATE RD (95% Bonferroni-width CI, pct. points)`,
-    `Holm-Bonferroni-adjusted p value`
+    `PATE RR (95% Bonferroni-adjusted CI)`,
+    `PATE RD (95% Bonferroni-adjusted CI, pct. points)`,
+    `Bonferroni-adjusted p value`
   )) |>
   tab_style(
     style = cell_text(weight = "bold"),
@@ -829,11 +775,11 @@ secondary_gt <- secondary_summary |>
       "to national population margins for age group, gender, and education",
       "level (SSB). RD (risk difference) re-expresses the PATE RR on the",
       "absolute (percentage-point) scale via the delta method.",
-      "CIs are reported at Bonferroni width (m = 36, the full secondary-outcome",
-      "family) as a conservative interval estimate; p values are instead",
-      "Holm-Bonferroni step-down adjusted across the same 36 comparisons,",
-      "which is uniformly more powerful than Bonferroni while still",
-      "controlling the family-wise error rate exactly.",
+      "CIs and p values are Bonferroni-adjusted within each of the 12",
+      "secondary analyses (m = 3, the 3 pairwise comparisons to V1_control);",
+      "no further correction is applied across the 12 secondary analyses",
+      "themselves, as these address 6 distinct, pre-specified research",
+      "questions rather than repeated looks at a single question.",
       if (length(fallback_analyses) > 0) {
         paste0(
           "For ", paste(fallback_analyses, collapse = ", "),

@@ -40,6 +40,7 @@
 
 library(tidyverse)
 library(survey)
+library(gt)
 
 pop_dir <- "C:/Users/peel/OneDrive - Folkehelseinstituttet/Studier/Panel_smittevernraad"
 
@@ -218,3 +219,99 @@ panel_w <- panel_weighting |>
   )
 
 saveRDS(panel_weighting, "panel_weighting.rds")
+
+## ---- 5. Figure: weight distribution by arm, before vs. after trimming ------
+
+weight_long <- panel_weighting |>
+  select(participant_id, arm, weight_raw, weight) |>
+  pivot_longer(
+    cols = c(weight_raw, weight),
+    names_to = "stage", values_to = "value"
+  ) |>
+  mutate(
+    stage = factor(stage, levels = c("weight_raw", "weight"),
+                    labels = c("Before trimming (weight_raw)", "After trimming (weight)"))
+  )
+
+# Free x-scales: raw weights range up to ~40 (driven by a handful of
+# low-education respondents, see header note), while trimmed weights are
+# compressed to a much narrower range -- a shared scale would make the
+# trimmed-weight histograms unreadable.
+weight_hist <- ggplot(weight_long, aes(x = value)) +
+  geom_histogram(bins = 30) +
+  facet_grid(arm ~ stage, scales = "free_x") +
+  labs(
+    x = "Weight",
+    y = "Count",
+    title = "Distribution of raking weights by arm, before and after trimming",
+    subtitle = "Raw weights trimmed at the 95th percentile within each arm and renormalised to mean 1"
+  ) +
+  theme_minimal()
+
+weight_hist
+
+ggsave(
+  file.path(results_dir, "figure_weight_distribution_by_arm.png"),
+  weight_hist, width = 8, height = 8, dpi = 150, bg = "white"
+)
+
+## ---- 6. Table: weighting diagnostics by arm --------------------------------
+## Formats `panel_w` (design effect / effective sample size, before vs.
+## after trimming, per arm; built in section 4) as a publication-ready gt
+## table, following the same conventions as the other exported tables in
+## this pipeline.
+
+gtsave_safe <- function(data, path) {
+  tmp <- tempfile(fileext = paste0(".", tools::file_ext(path)))
+  gtsave(data, tmp)
+  file.copy(tmp, path, overwrite = TRUE)
+  file.remove(tmp)
+  invisible(path)
+}
+
+panel_w_gt <- panel_w |>
+  mutate(arm = factor(arm, levels = arm_levels)) |>
+  arrange(arm) |>
+  gt() |>
+  tab_header(
+    title    = "Table 2b. Weighting diagnostics by arm",
+    subtitle = "Design effect and effective sample size, before vs. after weight trimming"
+  ) |>
+  cols_label(
+    arm           = "Arm",
+    n             = "N",
+    mean_weight   = "Mean weight",
+    min_weight    = "Min weight",
+    max_weight    = "Max weight",
+    deff_raw      = "Design effect, raw",
+    deff_trimmed  = "Design effect, trimmed",
+    n_eff_raw     = "Effective N, raw",
+    n_eff_trimmed = "Effective N, trimmed"
+  ) |>
+  fmt_number(columns = c(mean_weight, min_weight, max_weight, deff_raw, deff_trimmed), decimals = 2) |>
+  fmt_number(columns = c(n_eff_raw, n_eff_trimmed), decimals = 1) |>
+  cols_align(align = "center", columns = -arm) |>
+  tab_style(style = cell_text(weight = "bold"), locations = cells_column_labels()) |>
+  tab_footnote(
+    footnote = paste(
+      "Design effect = 1 + (SD(weight) / mean(weight))^2; effective N = N / design effect.",
+      "\"Raw\" uses the untrimmed raking weight (weight_raw); \"trimmed\" uses the weight",
+      "capped at the 95th percentile within each arm and renormalised to mean 1 (weight),",
+      "the weight used in all downstream analyses."
+    )
+  ) |>
+  tab_options(
+    table.font.size            = px(12),
+    heading.title.font.size    = px(14),
+    heading.subtitle.font.size = px(12),
+    column_labels.font.weight  = "bold",
+    table.border.top.style     = "solid",
+    table.border.bottom.style  = "solid"
+  ) |>
+  opt_table_font(font = "Times New Roman")
+
+panel_w_gt
+
+gtsave_safe(panel_w_gt, file.path(results_dir, "table2b_weighting_diagnostics.docx"))
+gtsave_safe(panel_w_gt, file.path(results_dir, "table2b_weighting_diagnostics.rtf"))
+gtsave_safe(panel_w_gt, file.path(results_dir, "table2b_weighting_diagnostics.html"))
