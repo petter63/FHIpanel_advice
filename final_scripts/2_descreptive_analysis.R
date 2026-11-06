@@ -46,12 +46,15 @@ n_total <- nrow(panel)
 # CONSORT flow diagram
 #-------------------------------------------------------------------------------
 # ---- Enrolment counts -------------------------------------------------------
-# Real study flow: nobody was excluded after
-# consenting, so there is no "Excluded" box between Consented and
-# Randomised.
-n_invited    <- 2160
-n_consented  <- n_total
-n_randomised <- n_consented
+# Counts come from the raw files via 1_organize_data.R. The files contain
+# everyone who consented; those who did not complete baseline or did not pass
+# the attention check are excluded before randomisation.
+n_invited          <- 2160   # TODO: update for the new study
+n_consented_by_arm <- readRDS("panel_consented_by_arm.rds")
+n_consented        <- sum(n_consented_by_arm)
+n_randomised       <- n_total                 # rows in panel = included
+n_excluded         <- n_consented - n_randomised
+stopifnot(n_excluded >= 0)
 
 # Short description of what each arm actually received, per the trial protocol.
 # Will be changed with real allocated arms and correct names after unblinding
@@ -62,15 +65,13 @@ arm_descriptions <- c(
   V4_sentence_definitions = "Added sentence about activities/work + added definitions of key terms"
 )
 
-# Real allocation counts per arm (via the blinded file -> arm mapping in
-# final_scripts/1_organize_data.R for the
-# true per-file randomized totals). `panel` now contains one row per
-# RANDOMISED participant per arm (1_organize_data.R pads the real completer
-# rows back up to n_allocated_by_arm with placeholder "missing" rows, blank
-# except participant_id/arm/included).
+# Allocation counts per arm (included participants, from
+# final_scripts/1_organize_data.R). `panel` has one row per randomised
+# participant; those who dropped out after baseline have missing outcome data.
 n_allocated_by_arm <- readRDS("panel_enrolment.rds")
 n_analysed_by_arm  <- panel |>
-  filter(!is.na(answer_time_ms)) |>
+  # Dropout = all 15 outcome items missing (same definition as in 4_ and 7_)
+  filter(!is.na(primary_correct_count)) |>
   count(arm) |>
   deframe() |>
   (\(x) x[names(arm_descriptions)])()
@@ -82,6 +83,7 @@ flow <- tibble(
 ) |>
   mutate(n_missing_outcome = n_allocated - n_analysed)
 stopifnot(sum(flow$n_allocated) == n_randomised)
+stopifnot(all(n_consented_by_arm[names(arm_descriptions)] >= flow$n_allocated))
 
 arm_short <- flow$arm |>
   as.character() |>
@@ -113,6 +115,15 @@ box_consented <- tibble(
   xmin = x_mid - box_w, xmax = x_mid + box_w,
   ymin = y_consented - box_h / 2, ymax = y_consented + box_h / 2,
   label = paste0("Consented\n(N = ", n_consented, ")")
+)
+
+# Excluded after consent (no completed baseline / failed attention check),
+# branching off the Consented -> Randomised arrow.
+y_excl_enrol <- mean(c(y_consented - box_h / 2, y_randomised + box_h / 2))
+box_excl_enrol <- tibble(
+  xmin = x_mid + box_w + 0.6, xmax = x_mid + box_w + 0.6 + 5,
+  ymin = y_excl_enrol - 0.55, ymax = y_excl_enrol + 0.55,
+  label = paste0("Excluded (n = ", n_excluded, ")\nNo completed baseline or\nfailed attention check")
 )
 
 box_randomised <- tibble(
@@ -150,7 +161,8 @@ boxes <- bind_rows(
   mutate(box_randomised, type = "main"),
   mutate(box_alloc,      type = "main"),
   mutate(box_analysed,   type = "main"),
-  mutate(box_excl_arm,   type = "excl")
+  mutate(box_excl_arm,   type = "excl"),
+  mutate(box_excl_enrol, type = "excl")
 )
 
 row_labels <- tibble(
@@ -178,8 +190,9 @@ arrows_down <- tibble(
   xend = x_col, yend = y_analysis + box_h / 2
 )
 arrows_excl_arm <- tibble(
-  x = x_col,                       y = y_mid_arm,
-  xend = x_col + box_w / 2 + 0.4,  yend = y_mid_arm
+  x = c(x_col, x_mid + 0),                      y = c(rep(y_mid_arm, n_arms), y_excl_enrol),
+  xend = c(x_col + box_w / 2 + 0.4, x_mid + box_w + 0.6),
+  yend = c(rep(y_mid_arm, n_arms), y_excl_enrol)
 )
 
 consort_plot <- ggplot() +
@@ -223,7 +236,10 @@ consort_plot <- ggplot() +
   labs(
     title = "CONSORT flow chart",
     caption = str_wrap(
-      "Missing data per arm: missing outcome data (did not answer the survey).",
+      paste0(
+        "Excluded: consented but did not complete baseline or did not pass the attention check. ",
+        "Missing data per arm: missing outcome data (did not answer the survey)."
+      ),
       width = 90
     )
   ) +
@@ -250,9 +266,10 @@ library(forcats)
 library(readr)
 
 # Table 1 describes the whole randomized/allocated sample (not just the
-# analysed subset), so participants with missing outcome data show up as an 
-# explicit "Missing" category per characteristic below, rather than being 
-# silently excluded.
+# analysed subset). All included participants have completed the baseline
+# form, so baseline characteristics are observed also for those who dropped
+# out before the outcome questions. "Missing" below therefore only means
+# genuine item non-response on baseline, not dropout.
 baseline_pop <- panel |>
   rename("Age group" = "age_group",
          "Gender" = "gender",
@@ -275,12 +292,12 @@ baseline_vars <- c(
 routed_vars <- c("Baseline behaviour", "Contact high risk patients", "Can work from home")
 
 # Replace NA with an explicit category, distinguishing *why* it's missing:
-# "Missing" for dropouts (no outcome data at all -- see simulate_panel_test.R),
-# vs. "Not applicable" for structural skip logic (work-related questions asked
-# only of the employed). "Not applicable" is only ever assigned for routed
-# variables -- any other NA (which, given the simulation, shouldn't occur
-# outside dropouts, but is guarded against here) falls back to "Missing"
-# rather than being silently mislabelled as routing.
+# "Missing" for genuine item non-response on baseline, vs. "Not applicable"
+# for structural skip logic (work-related questions asked only of the
+# employed). "Not applicable" is only ever assigned for routed variables --
+# any other NA falls back to "Missing" rather than being silently mislabelled
+# as routing. Dropout after baseline is NOT a reason for missingness here,
+# since baseline is complete for everyone included.
 prep_var <- function(x, missing_flag, is_routed) {
   # Some baseline variables (e.g. age_group, education) are ordered factors;
   # dropping to plain character/factor here keeps the "level" column a
@@ -298,7 +315,7 @@ prep_var <- function(x, missing_flag, is_routed) {
 
 summarise_by_arm <- function(data, var) {
   data |>
-    mutate(level = prep_var(.data[[var]], is.na(primary_correct_count), var %in% routed_vars)) |>
+    mutate(level = prep_var(.data[[var]], FALSE, var %in% routed_vars)) |>
     count(arm, level, .drop = FALSE) |>
     group_by(arm) |>
     mutate(pct = 100 * n / sum(n)) |>
@@ -309,7 +326,7 @@ summarise_by_arm <- function(data, var) {
 
 summarise_total <- function(data, var) {
   data |>
-    mutate(level = prep_var(.data[[var]], is.na(primary_correct_count), var %in% routed_vars)) |>
+    mutate(level = prep_var(.data[[var]], FALSE, var %in% routed_vars)) |>
     count(level, .drop = FALSE) |>
     mutate(pct = 100 * n / sum(n)) |>
     mutate(variable = var, Total = sprintf("%d (%.1f%%)", n, pct)) |>
@@ -331,7 +348,7 @@ table1 <- by_arm |>
 
 # "Reasons for working from home" is a second layer of skip logic nested
 # inside "Baseline behavior": it's only asked of participants who answered
-# "Worked from home" there (see reasons_home_office_* in clean_panel_test.R).
+# "Worked from home" there (see reasons_home_office_* in 1_organize_data.R).
 # It's also a select-all-that-apply item (the four reasons aren't mutually
 # exclusive -- a participant can endorse several), so it can't be summarized
 # with prep_var()/summarize_by_arm() like the single-answer variables above:
@@ -354,12 +371,12 @@ wfh_items <- tibble(
 wfh_large_extent <- c("To a large extent", "To a very large extent")
 
 # Eligibility is driven by "Baseline behavior" (not by employment status
-# like the other routed_vars), so a dropout's NA there must not be read as
-# "not eligible" -- treat dropouts (missing_flag) separately from genuine
-# non-"Worked from home" answers.
+# like the other routed_vars). Baseline is complete for all included
+# participants (dropouts occur after baseline), so there is no dropout-driven
+# missingness here; an NA in "Baseline behaviour" is treated as not eligible.
 wfh_eligible <- baseline_pop$`Baseline behaviour` == "Worked from home"
 wfh_eligible[is.na(wfh_eligible)] <- FALSE
-wfh_missing  <- is.na(baseline_pop$primary_correct_count)
+wfh_missing  <- rep(FALSE, nrow(baseline_pop))
 wfh_arm_n    <- table(baseline_pop$arm)
 wfh_total_n  <- nrow(baseline_pop)
 
@@ -388,9 +405,8 @@ summarise_wfh_item <- function(data, col, label) {
 wfh_yes_rows <- map2_dfr(wfh_items$col, wfh_items$label,
                           ~ summarise_wfh_item(baseline_pop, .x, .y))
 
-# Shared "Not applicable" (didn't work from home) / "Missing" (dropout)
-# rows, computed once since eligibility and dropout status don't vary
-# across the four reason items.
+# Shared "Not applicable" (didn't work from home) / "Missing" rows, computed
+# once since eligibility doesn't vary across the four reason items.
 wfh_cat <- case_when(
   wfh_missing    ~ "Missing",
   !wfh_eligible  ~ "Not applicable",

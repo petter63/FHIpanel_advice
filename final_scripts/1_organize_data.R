@@ -1,4 +1,6 @@
-## Read the four REAL, now-UNBLINDED raw survey-export files (one per study arm,
+## 1. Organize data - updated 06/11/2026
+#-------------------------------------------------------------------------------
+## Read the four BLINDED or UNBLINDED raw survey-export files (one per study arm,
 ## "data/Smittevern re[s]sult[s]_{W,X,Y,Z}.xlsx") and clean them into the
 ## analysis-ready tibble structure the rest of the pipeline expects.
 ##
@@ -6,17 +8,16 @@
 ## "data/Smittevern_RCT_codebook and data dictionary.xlsx" (sheets
 ## "Detailed variable key" and "Derived outcomes"). A few things to flag:
 ##
-##  - UPDATE 2026-10-09: the allocation has now been UNBLINDED. The real,
-##    verified randomised allocation (confirmed by Heather EMM-K who holds the
-##    randomisation log) is: V1_control = file Z, V2_sentence = file Y,
-##    V3_definitions = file X, V4_sentence_definitions = file W. This real
-##    mapping is applied below, in the "Unblinded real allocation" section,
+##  - The allocation will be UNBLINDED after blinded assessment of the results. 
+##    Heather EMM-K will confirm randomised allocation (based on the
+##    randomisation log) e.g.: V1_control = file Z, V2_sentence = file Y,
+##    V3_definitions = file X, V4_sentence_definitions = file W. The real
+##    mapping will be applied below, in the "Unblinded real allocation" section,
 ##    and is what `arm` is actually built from from this point on -- every
-##    arm-stratified result produced from this file downstream now reflects
+##    arm-stratified result produced from this file downstream will then reflects
 ##    the real allocation.
-##  - HISTORICAL (kept for the record, no longer used): until the line
-##    above, the real, verified randomised allocation (which file/letter ->
-##    which of V1-V4) was *not* in the raw export, and was not known to
+##  - The verified randomised allocation (which file/letter ->
+##    which of V1-V4) was not in the raw export, and was not known to
 ##    whoever exported these files either -- the four files had to be read
 ##    and analysed BLINDED to arm. `arm` was therefore assigned completely
 ##    AT RANDOM, one arm per file, purely as a placeholder so the rest of
@@ -24,41 +25,51 @@
 ##    random assignment (`file_arm_map_blinded_HISTORICAL` below) was NOT
 ##    the real allocation, and every arm-stratified result produced while it
 ##    was in effect was meaningless -- it is retained only so the blinding
-##    procedure that was used is documented, and is no longer fed into
-##    `panel_data`.
-##  - The four files have a few per-file naming inconsistencies (a typo'd
+##    procedure that was used is documented, and will no longer be fed into
+##    `panel_data` performing the final unblinded analyses.
+##  - In the first trial (performed in September/October 2026,
+##    the four files have a few per-file naming inconsistencies (a typo'd
 ##    column and inconsistent casing on the Scenario_3 items in
-##    "Smittevern results_Y.xlsx"), normalised away below so the four
+##    "Smittevern results_Y.xlsx"). This was normalised away below so the four
 ##    files share one consistent column set before being combined.
-##  - None of the four files contains an "Included" column, nor any rows
-##    for people who started but never finished the survey -- these
-##    exports apparently only contain completed submissions. "included" is
-##    therefore set to TRUE for everyone below (same placeholder treatment
+##  - In the first trial, none of the four files contains an "Included" column, 
+##    nor any rows for people who started but never finished the survey - these
+##    exports apparently only contain completed submissions. "included" was
+##    therefore set to TRUE for everyone (same placeholder treatment
 ##    as attention_check_pass), and there is no "missing outcome data"
 ##    (dropout) row in this data at all. This means `n_allocated` per arm
 ##    (needed for the CONSORT flow chart in descreptive_analysis.R) is NOT
 ##    recoverable from these files and must come from the real
-##    randomisation/enrolment log instead.
-##  - Health_literacy is coded 1 = very difficult ... 4 = very easy (the
-##    codebook flags this direction as differing from an earlier protocol
-##    description. Here the administered-form coding is used).
-##  - High_risk correct options are {1, 2, 4, 6}; {3, 5} are incorrect
-##    (suffixes follow the questionnaire's option numbers, not worksheet
-##    order).
-##  - Scenario_*_enough_info's value labels are NOT in a monotonic
-##    agreement order in the raw export (codes are
-##    1=Disagree, 2=Strongly disagree, 3=Strongly agree, 4=Agree,
-##    5=Neither agree nor disagree) -- decoded below with the levels
-##    reordered into their actual agreement order.
+##    randomisation/enrolment log instead. In the new trial in November 2026,
+##    the files contain everyone who consented, whether or not they completed
+##    baseline or passed the attention check. The "Included" column flags
+##    those who did (= randomised). Consented and randomised counts per arm
+##    are derived from the files; no manual counts or placeholder rows are
+##    used. Missing outcome data are only those who drop out after baseline.
+##  - The coding for each variable must be validated before running the new trial.
+##    In the first trial: 
+##      - Health_literacy was coded 1 = very difficult - 4 = very easy (the
+##        codebook flags this direction as differing from an earlier protocol
+##        description. Here the administered-form coding was used).
+##      - High_risk correct options are {1, 2, 4, 6}; {3, 5} was incorrect
+##        (suffixes follow the questionnaire's option numbers, not worksheet
+##        order).
+##      - Scenario_*_enough_info's value labels was NOT in a monotonic
+##        agreement order in the raw export (codes were
+##        1=Disagree, 2=Strongly disagree, 3=Strongly agree, 4=Agree,
+##        5=Neither agree nor disagree) -- decoded below with the levels
+##        reordered into their actual agreement order.
 
 rm(list = ls())
 
 library(tidyverse)
 library(readxl)
 
-## ---- 1. Read the four raw files and tag each with the real, unblinded arm -
+## ---- 1. Read the four raw files and tag each with the real, (un)blinded arm -
 
-data_dir <- file.path("data")
+# data_dir <- file.path("data")
+# New folder for the trial in November 2026
+data_dir <- file.path("data_nov26")
 
 arm_levels <- c("V1_control", "V2_sentence", "V3_definitions", "V4_sentence_definitions")
 
@@ -74,41 +85,29 @@ raw_files <- c(
 # "Unblinded real allocation" below, which overrides this with the real
 # file -> arm mapping). Kept under its own name, and still seeded, purely so
 # this historical artefact stays reproducible if ever inspected again.
-set.seed(8421)
-file_arm_map_blinded_HISTORICAL <- setNames(sample(arm_levels), names(raw_files))
-file_arm_map_blinded_HISTORICAL
+#set.seed(8421)
+#file_arm_map_blinded_HISTORICAL <- setNames(sample(arm_levels), names(raw_files))
+#file_arm_map_blinded_HISTORICAL
 
 # ------------------------------------------------------------------------------
-# Unblinded real allocation
+# Blinded - or later unblinded real allocation
 # ------------------------------------------------------------------------------
-## Real, verified randomised allocation (file letter -> arm), confirmed
-## 2026-10-09 by Heather M-K who holds the randomisation log:
-##   V1_control               = Z
-##   V2_sentence               = Y
-##   V3_definitions            = X
-##   V4_sentence_definitions   = W
-## This is the mapping actually used to build `panel_data$arm` from here on
-## -- it replaces `file_arm_map_blinded_HISTORICAL` above.
-file_arm_map <- c(
-  Z = "V1_control",
-  Y = "V2_sentence",
-  X = "V3_definitions",
-  W = "V4_sentence_definitions"
-)
+## ROUND 1 (new study, Nov 2026): BLINDED. Files W, X, Y, Z are randomly
+## assigned to the four arms. The real allocation is not used until unblinding.
+set.seed(5937)
+file_arm_map <- setNames(sample(arm_levels), names(raw_files))
+
+## UNBLINDED real allocation -- enable only once the real mapping is confirmed
+## (file letter -> arm), and comment out the blinded mapping above:
+# file_arm_map <- c(
+#   Z = "V1_control",
+#   Y = "V2_sentence",
+#   X = "V3_definitions",
+#   W = "V4_sentence_definitions"
+# )
 file_arm_map <- file_arm_map[names(raw_files)]  # keep W, X, Y, Z order
 stopifnot(setequal(file_arm_map, arm_levels))
 file_arm_map
-
-# True total randomised per FILE (not per arm), supplied 2026-10-05:
-# 260 (Z), 250 (Y), 251 (X), 255 (W). Mapped through the real (now
-# unblinded) file -> arm assignment above so the CONSORT counts reflect the
-# true allocation.
-
-n_allocated_by_file <- c(W = 255, X = 251, Y = 250, Z = 260)
-stopifnot(sum(n_allocated_by_file) == 1016)  # matches total consented/randomised
-n_allocated_by_arm  <- setNames(n_allocated_by_file[names(file_arm_map)], file_arm_map)
-n_allocated_by_arm  <- n_allocated_by_arm[arm_levels]   # V1-V4 order
-n_allocated_by_arm
 
 raw_list <- map(raw_files, ~ read_excel(.x, sheet = 1))
 
@@ -121,11 +120,14 @@ raw_list$Y <- raw_list$Y |>
     Scenario_3.Normal                 = Scenario_3.normal
   )
 
-# No file has an "Included" column (see header note) -- add the same
-# placeholder used for attention_check_pass below (everyone treated as
-# having met the inclusion criteria, since there's no raw-data equivalent
-# to check against).
-raw_list <- map(raw_list, ~ mutate(.x, Included = "1"))
+# The files contain everyone who consented, including those who did not
+# complete the baseline form or did not pass the attention check. The raw
+# "Included" column ("1" = consented + baseline completed + attention check
+# passed) is therefore required -- fail loudly if it is missing or has
+# unexpected codes rather than silently treating everyone as included.
+# TODO: confirm the column name/coding when the real files arrive.
+stopifnot(all(map_lgl(raw_list, ~ "Included" %in% names(.x))))
+stopifnot(all(map_lgl(raw_list, ~ all(.x$Included %in% c("0", "1")))))
 
 panel_data <- imap(raw_list, function(df, file_label) {
   mutate(df, arm = file_arm_map[[file_label]])
@@ -137,6 +139,18 @@ panel_data <- imap(raw_list, function(df, file_label) {
 stopifnot(n_distinct(panel_data$arm) == length(raw_files))
 
 panel_data |> count(arm)
+
+# Enrolment counts per arm, derived from the files: consented = all rows,
+# randomised/allocated = rows with Included == "1".
+n_consented_by_arm <- table(panel_data$arm)[arm_levels] |>
+  (\(x) setNames(as.integer(x), names(x)))()
+n_allocated_by_arm <- table(panel_data$arm[panel_data$Included == "1"])[arm_levels] |>
+  (\(x) setNames(as.integer(x), names(x)))()
+n_consented_by_arm
+n_allocated_by_arm
+c(consented = sum(n_consented_by_arm),
+  not_included = sum(n_consented_by_arm) - sum(n_allocated_by_arm),
+  randomised = sum(n_allocated_by_arm))
 
 ## ---- Label decoding helpers -----------------------------------------------
 
@@ -285,8 +299,7 @@ panel_data <- panel_data |>
     submitted_at   = `$created`,
     answer_time_ms = `$answer_time_ms`,
 
-    # No raw-data equivalent (see header note) -- everyone treated as
-    # having met the inclusion criteria.
+    # Consent + completed baseline + passed attention check.
     included = Included == "1",
 
     gender    = decode(Gender, gender_labels),
@@ -330,9 +343,9 @@ panel_data <- panel_data |>
     perceived_usefulness = decode(Seek_info, agreement_labels, ordered = TRUE),
     intention_to_share   = decode(Share_info, agreement_labels, ordered = TRUE),
 
-    # Placeholder: no attention-check item exists in the raw export.
-    # Everyone is treated as passing until a real item is added/found.
-    attention_check_pass = TRUE
+    # No separate attention-check item is used here; `included` already
+    # encodes it. Replace with the raw item if the new export has one.
+    attention_check_pass = Included == "1"
   ) |>
   bind_cols(scenario_items) |>
   bind_cols(tibble(
@@ -345,56 +358,22 @@ panel_data <- panel_data |>
     sufficient_info_count = sufficient_info_count
   ))
 
-# Complete-case version: one row per actual survey completion, no
-# placeholder rows for the randomized-but-missing participants added below.
-# Kept as a separate artifact for reference/debugging -- the rest of the
-# pipeline reads "panel_test.rds" (below), not this file.
-saveRDS(panel_data, "panel_cc.rds")
+# All consenters (included and not included), for CONSORT reference
+saveRDS(panel_data, "panel_consented.rds")
 
-## ---- Add back the randomized-but-missing participants ---------------------
-# The four raw export files contain only completed submissions (see header
-# note) -- respondents who were randomized but never answered (or dropped
-# out before) the survey simply aren't rows in them at all. Every downstream
-# script, however, expects `panel` to contain ALL randomized participants
-# per arm (that's what the CONSORT "Missing data" box and Table 1's
-# explicit "Missing" row are built from -- see simulate_panel_test.R's
-# convention, replicated here: a missing-outcome row has every field blank
-# except participant_id/arm/included). Pad each arm back up to its true
-# n_allocated_by_arm with such placeholder rows so per-arm row counts in
-# the analysis dataset match the real randomization counts.
-n_completers_by_arm <- table(panel_data$arm)[names(n_allocated_by_arm)]
-n_missing_by_arm     <- n_allocated_by_arm - as.integer(n_completers_by_arm)
-stopifnot(all(n_missing_by_arm >= 0))   # completers can't exceed those allocated
-n_missing_by_arm
-
-missing_rows <- map_dfr(names(n_missing_by_arm), function(a) {
-  n_miss <- n_missing_by_arm[[a]]
-  if (n_miss == 0) return(tibble())
-  tibble(
-    # Clearly-synthetic ID: these participants have no raw-data row at all
-    # (not even a submission id), unlike real participant_ids ("P<digits>").
-    participant_id = paste0("MISSING_", a, "_", seq_len(n_miss)),
-    arm            = a,
-    # Randomized (hence counted in n_allocated) implies they met the
-    # inclusion criteria -- everything else about them is unobserved.
-    included       = TRUE
-  )
-})
-
-# bind_rows() fills every column not present in missing_rows (i.e.
-# everything except participant_id/arm/included) with NA of the matching
-# type, which is exactly the "missing every field" convention above.
-panel_data <- bind_rows(panel_data, missing_rows)
-stopifnot(all(as.integer(table(panel_data$arm)[names(n_allocated_by_arm)]) == n_allocated_by_arm))
+# Analysis dataset: only included participants (consent + completed baseline
+# + passed attention check), i.e. the randomised participants. Participants
+# who dropped out after baseline remain as rows with missing outcome data.
+panel_data <- panel_data |> filter(included)
+stopifnot(all(as.integer(table(panel_data$arm)[arm_levels]) == n_allocated_by_arm))
 
 panel_data |> count(arm)
 
 # Saved under the SAME filename the rest of the pipeline already expects
+saveRDS(panel_data, "panel_cc.rds")
 saveRDS(panel_data, "panel_data.rds")
 
-# Real per-arm "allocated" counts (via the blinded file -> arm mapping
-# above), for the CONSORT flow chart in descreptive_analysis.R. Now also
-# directly verifiable as table(panel_data$arm), but kept as its own small
-# file since that's where the "true" number originates (and it's cheap
-# insurance against panel_data.rds being rebuilt differently later).
+# Per-arm counts for the CONSORT flow chart in 2_descreptive_analysis.R:
+# consented, and allocated (= included/randomised).
 saveRDS(n_allocated_by_arm, "panel_enrolment.rds")
+saveRDS(n_consented_by_arm, "panel_consented_by_arm.rds")
