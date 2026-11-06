@@ -618,7 +618,7 @@ resultat_pate_so5_3
 ##     across the 12 secondary analyses themselves (see the multiplicity
 ##     decision earlier in this script).
 ##  2. Assembles one combined table (mirroring Table 4 from prim_outcome.R:
-##     crude/SATE n/N (%) per arm, calibrated/PATE % per arm, PATE RR/RD,
+##     crude/SA n/N (%) per arm, calibrated/PA % per arm, PATE RR/RD,
 ##     and Bonferroni-adjusted p value) across all 36 comparisons, and
 ##     exports it as a publication-ready gt table.
 
@@ -704,10 +704,10 @@ secondary_summary <- purrr::map2_dfr(
         comp_arm    = term_to_arm[term],
         Analysis    = analysis_label,
         Description = description,
-        `SATE, n/N (%) control`          = control_sate_np,
-        `SATE, n/N (%) intervention`     = desc$crude$sate_np[match(comp_arm, desc$crude$arm)],
-        `PATE, calibrated % control`     = control_pate_pct,
-        `PATE, calibrated % intervention` = desc$calibrated$pate_pct[match(comp_arm, desc$calibrated$arm)]
+        `SA, n/N (%) control`          = control_sate_np,
+        `SA, n/N (%) intervention`     = desc$crude$sate_np[match(comp_arm, desc$crude$arm)],
+        `PA, calibrated % control`     = control_pate_pct,
+        `PA, calibrated % intervention` = desc$calibrated$pate_pct[match(comp_arm, desc$calibrated$arm)]
       )
   }
 )
@@ -721,8 +721,8 @@ secondary_summary <- secondary_summary |>
   mutate(Group = paste0(Analysis, ". ", Description)) |>
   select(
     Group, Comparison,
-    `SATE, n/N (%) control`, `SATE, n/N (%) intervention`,
-    `PATE, calibrated % control`, `PATE, calibrated % intervention`,
+    `SA, n/N (%) control`, `SA, n/N (%) intervention`,
+    `PA, calibrated % control`, `PA, calibrated % intervention`,
     `PATE RR (95% Bonferroni-adjusted CI)`,
     `PATE RD (95% Bonferroni-adjusted CI, pct. points)`,
     `Bonferroni-adjusted p value`
@@ -743,18 +743,18 @@ secondary_gt <- secondary_summary |>
   ) |>
   cols_label(
     Comparison = "Comparison",
-    `SATE, n/N (%) control` = "SATE, n/N (%): control",
-    `SATE, n/N (%) intervention` = "SATE, n/N (%): intervention",
-    `PATE, calibrated % control` = "PATE, calibrated %: control",
-    `PATE, calibrated % intervention` = "PATE, calibrated %: intervention",
+    `SA, n/N (%) control` = "SA, n/N (%): control",
+    `SA, n/N (%) intervention` = "SA, n/N (%): intervention",
+    `PA, calibrated % control` = "PA, calibrated %: control",
+    `PA, calibrated % intervention` = "PA, calibrated %: intervention",
     `PATE RR (95% Bonferroni-adjusted CI)` = "PATE RR (95% Bonferroni-adjusted CI)",
     `PATE RD (95% Bonferroni-adjusted CI, pct. points)` = "PATE RD, pct. points (95% Bonferroni-adjusted CI)",
     `Bonferroni-adjusted p value` = "Bonferroni-adjusted p value"
   ) |>
   cols_align(align = "left", columns = Comparison) |>
   cols_align(align = "center", columns = c(
-    `SATE, n/N (%) control`, `SATE, n/N (%) intervention`,
-    `PATE, calibrated % control`, `PATE, calibrated % intervention`,
+    `SA, n/N (%) control`, `SA, n/N (%) intervention`,
+    `PA, calibrated % control`, `PA, calibrated % intervention`,
     `PATE RR (95% Bonferroni-adjusted CI)`,
     `PATE RD (95% Bonferroni-adjusted CI, pct. points)`,
     `Bonferroni-adjusted p value`
@@ -769,8 +769,9 @@ secondary_gt <- secondary_summary |>
   ) |>
   tab_footnote(
     footnote = paste(
-      "SATE = sample average treatment effect (crude, unweighted trial counts).",
-      "PATE = population average treatment effect: post-stratification weights",
+      "SA = sample average (crude, unweighted trial counts).",
+      "PA = population average (calibrated, weighted proportion);",
+      "PATE = population average treatment effect (RR and RD): post-stratification weights",
       "from panel_weighting.rds (weighting.R), raked separately within each arm",
       "to national population margins for age group, gender, and education",
       "level (SSB). RD (risk difference) re-expresses the PATE RR on the",

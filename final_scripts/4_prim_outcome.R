@@ -22,7 +22,8 @@ library(gt)
 panel <- readRDS("panel_data.rds")
 
 panel <- panel |>
-  filter(!is.na(answer_time_ms)) |>
+  # Dropout = all 15 outcome items missing (same definition as in 7_)
+  filter(!is.na(primary_correct_count)) |>
   mutate(sc1_1 = if_else(scenario1_item1 %in% c("Likely", "Very likely"), 1, 0),
          sc1_2 = if_else(scenario1_item2_careful %in% c("Likely", "Very likely"), 1, 0),
          sc1_3 = if_else(scenario1_item3_normal %in% c("Very unlikely", "Unlikely"), 1, 0),
@@ -300,7 +301,7 @@ n_unmatched <- sum(is.na(panel_w$weight))
 if (n_unmatched > 0) {
   warning(n_unmatched, " respondent(s) in panel have no matching weight ",
           "in panel_weighting.rds -- check that weighting.R was run on the ",
-          "same panel_test.rds.")
+          "same panel_data.rds.")
 }
 
 itemized_w <- panel_w |>
@@ -377,8 +378,8 @@ resultat_pate <- tibble(
 resultat_pate
 
 # -------------------------------------------------------------------------
-# 6b2. Descriptive columns for Table 4: crude SATE n/N (%) and calibrated
-#      PATE % per arm (unweighted trial counts vs. post-stratification
+# 6b2. Descriptive columns for Table 4: crude SA n/N (%) and calibrated
+#      PA % per arm (unweighted trial counts vs. post-stratification
 #      weighted mean), to sit alongside the PATE RR/RD above.
 # -------------------------------------------------------------------------
 
@@ -403,15 +404,15 @@ resultat_pate_full <- tibble(term = names(beta_pate)) |>
   mutate(comp_arm = term_to_arm[term]) |>
   left_join(resultat_pate |> mutate(term = names(beta_pate)), by = "term") |>
   mutate(
-    `SATE, n/N (%) control`          = control_sate_np,
-    `SATE, n/N (%) intervention`     = crude_sate$sate_np[match(comp_arm, crude_sate$arm)],
-    `PATE, calibrated % control`     = control_pate_pct,
-    `PATE, calibrated % intervention` = calibrated_pate$pate_pct[match(comp_arm, calibrated_pate$arm)]
+    `SA, n/N (%) control`          = control_sate_np,
+    `SA, n/N (%) intervention`     = crude_sate$sate_np[match(comp_arm, crude_sate$arm)],
+    `PA, calibrated % control`     = control_pate_pct,
+    `PA, calibrated % intervention` = calibrated_pate$pate_pct[match(comp_arm, calibrated_pate$arm)]
   ) |>
   select(
     Comparison,
-    `SATE, n/N (%) control`, `SATE, n/N (%) intervention`,
-    `PATE, calibrated % control`, `PATE, calibrated % intervention`,
+    `SA, n/N (%) control`, `SA, n/N (%) intervention`,
+    `PA, calibrated % control`, `PA, calibrated % intervention`,
     `PATE RR (95% Bonferroni-adjusted CI)`,
     `PATE RD (95% Bonferroni-adjusted CI, pct. points)`,
     `Bonferroni-adjusted p value`
@@ -438,18 +439,18 @@ resultat_pate_gt <- resultat_pate_full |>
   ) |>
   cols_label(
     Comparison = "Comparison",
-    `SATE, n/N (%) control` = "SATE, n/N (%): control",
-    `SATE, n/N (%) intervention` = "SATE, n/N (%): intervention",
-    `PATE, calibrated % control` = "PATE, calibrated %: control",
-    `PATE, calibrated % intervention` = "PATE, calibrated %: intervention",
+    `SA, n/N (%) control` = "SA, n/N (%): control",
+    `SA, n/N (%) intervention` = "SA, n/N (%): intervention",
+    `PA, calibrated % control` = "PA, calibrated %: control",
+    `PA, calibrated % intervention` = "PA, calibrated %: intervention",
     `PATE RR (95% Bonferroni-adjusted CI)` = "PATE RR (95% Bonferroni-adjusted CI)",
     `PATE RD (95% Bonferroni-adjusted CI, pct. points)` = "PATE RD, pct. points (95% Bonferroni-adjusted CI)",
     `Bonferroni-adjusted p value` = "Bonferroni-adjusted p value"
   ) |>
   cols_align(align = "left", columns = Comparison) |>
   cols_align(align = "center", columns = c(
-    `SATE, n/N (%) control`, `SATE, n/N (%) intervention`,
-    `PATE, calibrated % control`, `PATE, calibrated % intervention`,
+    `SA, n/N (%) control`, `SA, n/N (%) intervention`,
+    `PA, calibrated % control`, `PA, calibrated % intervention`,
     `PATE RR (95% Bonferroni-adjusted CI)`,
     `PATE RD (95% Bonferroni-adjusted CI, pct. points)`,
     `Bonferroni-adjusted p value`
@@ -460,8 +461,9 @@ resultat_pate_gt <- resultat_pate_full |>
   ) |>
   tab_footnote(
     footnote = paste(
-      "SATE = sample average treatment effect (crude, unweighted trial counts).",
-      "PATE = population average treatment effect: weights from",
+      "SA = sample average (crude, unweighted trial counts).",
+      "PA = population average (calibrated, weighted proportion);",
+      "PATE = population average treatment effect (RR and RD): weights from",
       "panel_weighting.rds (weighting.R), raked separately within each arm to",
       "national population margins for age group, gender, and education level",
       "(SSB); respondents with no population benchmark (missing demographics,",

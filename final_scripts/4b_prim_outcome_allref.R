@@ -39,7 +39,8 @@ library(gt)
 # -------------------------------------------------------------------------
 
 panel_base <- readRDS("panel_data.rds") |>
-  filter(!is.na(answer_time_ms)) |>
+  # Dropout = all 15 outcome items missing (same definition as in 7_)
+  filter(!is.na(primary_correct_count)) |>
   mutate(sc1_1 = if_else(scenario1_item1 %in% c("Likely", "Very likely"), 1, 0),
          sc1_2 = if_else(scenario1_item2_careful %in% c("Likely", "Very likely"), 1, 0),
          sc1_3 = if_else(scenario1_item3_normal %in% c("Very unlikely", "Unlikely"), 1, 0),
