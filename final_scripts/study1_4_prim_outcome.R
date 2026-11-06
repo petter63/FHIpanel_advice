@@ -381,6 +381,16 @@ resultat_pate <- tibble(
 
 resultat_pate
 
+# Unadjusted log-RR/RD estimates and SEs for the meta-analysis
+# (study1_study2_8_meta_analysis.R). SA = sample average, PA = population average.
+primary_estimates <- bind_rows(
+  tibble(estimand = "SA", term = names(beta), logRR = unname(beta), SE = unname(se)) |>
+    left_join(select(rd_sate, term, RD, RD_SE), by = "term"),
+  tibble(estimand = "PA", term = names(beta_pate), logRR = unname(beta_pate), SE = unname(se_pate)) |>
+    left_join(select(rd_pate, term, RD, RD_SE), by = "term")
+)
+saveRDS(primary_estimates, "study1_primary_estimates.rds")
+
 # -------------------------------------------------------------------------
 # 6b2. Descriptive columns for Table 4: crude SA n/N (%) and calibrated
 #      PA % per arm (unweighted trial counts vs. post-stratification
