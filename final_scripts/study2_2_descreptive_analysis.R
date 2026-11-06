@@ -1,3 +1,7 @@
+# STUDY 2 (new study, Nov 2026; raw data in data_nov26/). Outputs are prefixed study2_ (rds) and saved in results/study2/.
+# Files contain all who consented; only included participants (Included == "1") are randomised/analysed.
+# Do NOT mix with the previous-study scripts (study1_*).
+
 #-------------------------------------------------------------------------------
 # Project: FHI-panel effectiveness of infection prevention recommendations
 #-------------------------------------------------------------------------------
@@ -5,7 +9,7 @@
 # NB: the data frame is named "panel" from here on. 
 library(skimr)
 
-panel <- readRDS("panel_data.rds")
+panel <- readRDS("study2_panel_data.rds")
 str(panel)
 skimr::skim(panel)
 
@@ -19,7 +23,7 @@ library(stringr)
 # Each run gets its own timestamped subfolder under results/, so output from
 # different runs is kept separate and document when a given result was produced.
 run_id      <- format(Sys.time(), "%Y%m%d_%H%M%S")
-results_dir <- file.path("results", run_id)
+results_dir <- file.path("results", "study2", run_id)
 dir.create(results_dir, recursive = TRUE, showWarnings = FALSE)
 
 # Record run metadata (timestamp, R version, git commit) for traceability.
@@ -34,7 +38,7 @@ writeLines(
     paste("Run timestamp:", format(Sys.time(), "%Y-%m-%d %H:%M:%S %Z")),
     paste("R version:", R.version.string),
     paste("Git commit:", git_commit),
-    paste("Script:", "descreptive_analysis.R")
+    paste("Script:", "study2_2_descreptive_analysis.R")
   ),
   file.path(results_dir, "run_info.txt")
 )
@@ -46,11 +50,11 @@ n_total <- nrow(panel)
 # CONSORT flow diagram
 #-------------------------------------------------------------------------------
 # ---- Enrolment counts -------------------------------------------------------
-# Counts come from the raw files via 1_organize_data.R. The files contain
+# Counts come from the raw files via study2_1_organize_data.R. The files contain
 # everyone who consented; those who did not complete baseline or did not pass
 # the attention check are excluded before randomisation.
 n_invited          <- 2160   # TODO: update for the new study
-n_consented_by_arm <- readRDS("panel_consented_by_arm.rds")
+n_consented_by_arm <- readRDS("study2_panel_consented_by_arm.rds")
 n_consented        <- sum(n_consented_by_arm)
 n_randomised       <- n_total                 # rows in panel = included
 n_excluded         <- n_consented - n_randomised
@@ -66,9 +70,9 @@ arm_descriptions <- c(
 )
 
 # Allocation counts per arm (included participants, from
-# final_scripts/1_organize_data.R). `panel` has one row per randomised
+# final_scripts/study2_1_organize_data.R). `panel` has one row per randomised
 # participant; those who dropped out after baseline have missing outcome data.
-n_allocated_by_arm <- readRDS("panel_enrolment.rds")
+n_allocated_by_arm <- readRDS("study2_panel_enrolment.rds")
 n_analysed_by_arm  <- panel |>
   # Dropout = all 15 outcome items missing (same definition as in 4_ and 7_)
   filter(!is.na(primary_correct_count)) |>
@@ -348,7 +352,7 @@ table1 <- by_arm |>
 
 # "Reasons for working from home" is a second layer of skip logic nested
 # inside "Baseline behavior": it's only asked of participants who answered
-# "Worked from home" there (see reasons_home_office_* in 1_organize_data.R).
+# "Worked from home" there (see reasons_home_office_* in study2_1_organize_data.R).
 # It's also a select-all-that-apply item (the four reasons aren't mutually
 # exclusive -- a participant can endorse several), so it can't be summarized
 # with prep_var()/summarize_by_arm() like the single-answer variables above:

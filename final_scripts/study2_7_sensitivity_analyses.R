@@ -1,9 +1,13 @@
+# STUDY 2 (new study, Nov 2026; raw data in data_nov26/). Outputs are prefixed study2_ (rds) and saved in results/study2/.
+# Files contain all who consented; only included participants (Included == "1") are randomised/analysed.
+# Do NOT mix with the previous-study scripts (study1_*).
+
 # Sensitivity analysis for the primary outcome: Manski (1990) worst-case /
 # best-case bounds for missing outcome data.
 ## ------------------------------------------------------------------------
 ## The dropouts (included participants with all 15 comprehension items
 ## missing) are the primary
-## analysis (prim_outcome.R). Manski bounds instead ask: across EVERY
+## analysis (study2_4_prim_outcome.R). Manski bounds instead ask: across EVERY
 ## logically possible way those unobserved answers could have come out,
 ## how far could the estimate move? For a single arm's proportion correct,
 ## that means recoding all of that arm's missing items as wrong (the
@@ -34,12 +38,12 @@ library(ggplot2)
 library(gt)
 library(sandwich)
 
-## Ensure results_dir exists (created by descreptive_analysis.R, line
+## Ensure results_dir exists (created by study2_2_descreptive_analysis.R, line
 ## ~18-41) before running this script.
 
-panel <- readRDS("panel_data.rds")
+panel <- readRDS("study2_panel_data.rds")
 
-# Item-level correct/incorrect coding -- kept IDENTICAL to prim_outcome.R
+# Item-level correct/incorrect coding -- kept IDENTICAL to study2_4_prim_outcome.R
 # (including the two protocol deviations for scenario 3 & 4, item 3) so
 # that the bounds below apply to the same primary outcome, just under
 # different assumptions about the dropouts' unobserved answers.
@@ -55,12 +59,12 @@ panel <- panel |>
 
     sc3_1 = if_else(scenario3_item1 %in% c("Very unlikely", "Unlikely"), 1, 0),
     sc3_2 = if_else(scenario3_item2_careful %in% c("Likely", "Very likely"), 1, 0),
-    # OBS! Deviation from the protocol: 4 & 5 (not 1 & 2) -- see prim_outcome.R
+    # OBS! Deviation from the protocol: 4 & 5 (not 1 & 2) -- see study2_4_prim_outcome.R
     sc3_3 = if_else(scenario3_item3_normal %in% c("Likely", "Very likely"), 1, 0),
 
     sc4_1 = if_else(scenario4_item1 %in% c("Very unlikely", "Unlikely"), 1, 0),
     sc4_2 = if_else(scenario4_item2_careful %in% c("Likely", "Very likely"), 1, 0),
-    # OBS! Deviation from the protocol: 4 & 5 (not 1 & 2) -- see prim_outcome.R
+    # OBS! Deviation from the protocol: 4 & 5 (not 1 & 2) -- see study2_4_prim_outcome.R
     sc4_3 = if_else(scenario4_item3_normal %in% c("Likely", "Very likely"), 1, 0),
 
     sc5_1 = if_else(scenario5_item1 %in% c("Very unlikely", "Unlikely"), 1, 0),
@@ -69,7 +73,7 @@ panel <- panel |>
 
     arm             = relevel(factor(arm), ref = "V1_control"),
     # Dropout = all 15 primary outcome items missing (primary_correct_count
-    # is NA, see 1_organize_data.R). The sc_* columns above can't be used for
+    # is NA, see study2_1_organize_data.R). The sc_* columns above can't be used for
     # this: %in% turns NA answers into 0.
     missing_outcome = is.na(primary_correct_count)
   )
@@ -234,7 +238,7 @@ gtsave_safe(manski_gt, file.path(results_dir, "table7_manski_bounds.html"))
 # -------------------------------------------------------------------------
 # 5. Figure: Manski RR bounds vs. RR = 1
 # -------------------------------------------------------------------------
-# Main model for comparison: same log-binomial model as prim_outcome.R
+# Main model for comparison: same log-binomial model as study2_4_prim_outcome.R
 # (SA analysis, observed answers only), same dispersion rule for HC3 robust
 # SEs and the same Bonferroni-adjusted 95% CIs.
 main_data <- panel |>

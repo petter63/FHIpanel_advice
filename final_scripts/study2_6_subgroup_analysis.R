@@ -1,5 +1,9 @@
+# STUDY 2 (new study, Nov 2026; raw data in data_nov26/). Outputs are prefixed study2_ (rds) and saved in results/study2/.
+# Files contain all who consented; only included participants (Included == "1") are randomised/analysed.
+# Do NOT mix with the previous-study scripts (study1_*).
+
 # Subgroup analyses for primary outcome
-## One analysis performed as described in prim_outcome.R (log-binomial RR vs.
+## One analysis performed as described in study2_4_prim_outcome.R (log-binomial RR vs.
 ## V1_control, Bonferroni-adjusted for 3 comparisons), for each level of the
 ## following subgroups. Mapping decisions agreed with study team (native
 ## panel categories don't align exactly with the originally-planned
@@ -19,8 +23,8 @@
 ##    High   (University/college, <=4 years or >4 years)
 
 # ------------------------------------------------------------------------------
-# Start by running descreptive_analysis.R (to start a new result folder) and
-## run prim_outcome.R (to ensure correct variables in the data frame panel)
+# Start by running study2_2_descreptive_analysis.R (to start a new result folder) and
+## run study2_4_prim_outcome.R (to ensure correct variables in the data frame panel)
 
 # ------------------------------------------------------------------------------
 
@@ -37,7 +41,7 @@ missing_cols <- setdiff(required_cols, names(panel))
 if (length(missing_cols) > 0) {
   stop(
     "panel is missing: ", paste(missing_cols, collapse = ", "),
-    ". Run prim_outcome.R (section 1) first to build the outcome variables."
+    ". Run study2_4_prim_outcome.R (section 1) first to build the outcome variables."
   )
 }
 
@@ -84,12 +88,12 @@ if (n_gender_excluded > 0) {
 }
 
 # -------------------------------------------------------------------------
-# 2. Reusable RR/RD analysis, mirroring prim_outcome.R sections 2-4, applied
+# 2. Reusable RR/RD analysis, mirroring study2_4_prim_outcome.R sections 2-4, applied
 #    within a single subgroup level (one arm-comparison model per level)
 # -------------------------------------------------------------------------
 
 ## Delta-method SE for the risk difference (RD), re-expressed from the RR --
-## see prim_outcome.R section 4 for the full derivation/rationale.
+## see study2_4_prim_outcome.R section 4 for the full derivation/rationale.
 delta_rd <- function(coefs, Vmat, term_idx, ref_idx = 1) {
   b0 <- unname(coefs[ref_idx]); b1 <- unname(coefs[term_idx])
   v00 <- Vmat[ref_idx, ref_idx]
@@ -256,7 +260,7 @@ subgroup_gt <- resultat_subgroups |>
       "overall trial estimate); small strata (e.g. age <35, education Low)",
       "have wide confidence intervals and should be interpreted cautiously.",
       "SE type (model-based binomial vs. robust HC3, chosen per stratum by",
-      "the same dispersion > 1.2 rule as prim_outcome.R) is not shown but",
+      "the same dispersion > 1.2 rule as study2_4_prim_outcome.R) is not shown but",
       "is available in resultat_subgroups$SE_type."
     )
   ) |>

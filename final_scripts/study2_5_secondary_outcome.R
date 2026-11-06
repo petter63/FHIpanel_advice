@@ -1,3 +1,7 @@
+# STUDY 2 (new study, Nov 2026; raw data in data_nov26/). Outputs are prefixed study2_ (rds) and saved in results/study2/.
+# Files contain all who consented; only included participants (Included == "1") are randomised/analysed.
+# Do NOT mix with the previous-study scripts (study1_*).
+
 # Secondary analyses
 ## Final count: 5 research questions with a dedicated analysis (SQ1, SQ2,
 ## SQ3, SQ5; SQ4 has no separate analysis -- it is interpreted from the
@@ -69,7 +73,7 @@
 
 # ------------------------------------------------------------------------------
 # Start by running descriptive_analysis.R (to start a new result folder) and
-## run prim_outcome.R (to ensure correct variables in panel)
+## run study2_4_prim_outcome.R (to ensure correct variables in panel)
 
 # -------------------------------------------------------------------------
 # Multiplicity: decision
@@ -179,13 +183,13 @@ resultat_so1_1
 
 # -------------------------------------------------------------------------
 # SO1_1c. PATE -- population-weighted version (post-stratification weights
-#         from weighting.R), mirroring prim_outcome.R section 6.
+#         from study2_3_weighting.R), mirroring study2_4_prim_outcome.R section 6.
 # -------------------------------------------------------------------------
 ## sec_1 already has one row per respondent, so (unlike the item-level PATE
 ## model for the primary outcome) there is no need to pivot to long format:
 ## svyglm() is fit directly, one row per participant.
 
-panel_weighting <- readRDS("panel_weighting.rds") |>
+panel_weighting <- readRDS("study2_panel_weighting.rds") |>
   select(participant_id, weight)
 
 panel_sec_w <- panel_sec |>
@@ -617,7 +621,7 @@ resultat_pate_so5_3
 ##     95% CIs and p values for the PATE RR/RD. No correction is applied
 ##     across the 12 secondary analyses themselves (see the multiplicity
 ##     decision earlier in this script).
-##  2. Assembles one combined table (mirroring Table 4 from prim_outcome.R:
+##  2. Assembles one combined table (mirroring Table 4 from study2_4_prim_outcome.R:
 ##     crude/SA n/N (%) per arm, calibrated/PA % per arm, PATE RR/RD,
 ##     and Bonferroni-adjusted p value) across all 36 comparisons, and
 ##     exports it as a publication-ready gt table.
@@ -772,7 +776,7 @@ secondary_gt <- secondary_summary |>
       "SA = sample average (crude, unweighted trial counts).",
       "PA = population average (calibrated, weighted proportion);",
       "PATE = population average treatment effect (RR and RD): post-stratification weights",
-      "from panel_weighting.rds (weighting.R), raked separately within each arm",
+      "from study2_panel_weighting.rds (study2_3_weighting.R), raked separately within each arm",
       "to national population margins for age group, gender, and education",
       "level (SSB). RD (risk difference) re-expresses the PATE RR on the",
       "absolute (percentage-point) scale via the delta method.",

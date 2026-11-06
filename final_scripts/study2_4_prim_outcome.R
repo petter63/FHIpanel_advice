@@ -1,3 +1,7 @@
+# STUDY 2 (new study, Nov 2026; raw data in data_nov26/). Outputs are prefixed study2_ (rds) and saved in results/study2/.
+# Files contain all who consented; only included participants (Included == "1") are randomised/analysed.
+# Do NOT mix with the previous-study scripts (study1_*).
+
 # Primary outcome
 ## Number of correct answers across the 5 scenarios x 3 items (0-15),
 ## analysed as a relative risk (RR) via log-binomial regression.
@@ -12,14 +16,14 @@ library(survey)
 library(gt)
 
 # -------------------------------------------------------------------------
-## Ensure to create a new folder and log by running descreptive_analysis.R,
+## Ensure to create a new folder and log by running study2_2_descreptive_analysis.R,
 ## line 18 - 41, before primary analysis
 
 # -------------------------------------------------------------------------
 # 1. Code correct answers and build the outcome (successes / failures out of 15)
 # -------------------------------------------------------------------------
 
-panel <- readRDS("panel_data.rds")
+panel <- readRDS("study2_panel_data.rds")
 
 panel <- panel |>
   # Dropout = all 15 outcome items missing (same definition as in 7_)
@@ -262,12 +266,12 @@ gtsave_safe(resultat_gt, file.path(results_dir, "table3_primary_outcome_RR.html"
 
 #-------------------------------------------------------------------------------
 # 6. Population average treatment effect (PATE), using post-stratification
-#    weights from weighting.R (panel_weighting.rds)
+#    weights from study2_3_weighting.R (study2_panel_weighting.rds)
 # -------------------------------------------------------------------------
 ## The RR above is a SAMPLE average treatment effect: it describes the
 ## effect for respondents as recruited, whose age/gender/education mix may
 ## not match the general population. Re-weighting each arm to the national
-## population (age, gender, education; see weighting.R) targets the
+## population (age, gender, education; see study2_3_weighting.R) targets the
 ## population average treatment effect (PATE) instead -- i.e. the effect we
 ## would expect if the trial's population had matched Norway's adult
 ## population on these variables.
@@ -287,11 +291,11 @@ gtsave_safe(resultat_gt, file.path(results_dir, "table3_primary_outcome_RR.html"
 ##  - quasibinomial(link = "log") for the same RR interpretation as
 ##    section 2's log-binomial model.
 ##  - Respondents excluded from raking (missing age/gender/education, or
-##    gender = Other/Prefer not to say -- see weighting.R) keep weight = 1,
+##    gender = Other/Prefer not to say -- see study2_3_weighting.R) keep weight = 1,
 ##    i.e. contribute to the PATE estimate unadjusted, since there is no
 ##    population benchmark to re-weight them against.
 
-panel_weighting <- readRDS("panel_weighting.rds") |>
+panel_weighting <- readRDS("study2_panel_weighting.rds") |>
   select(participant_id, weight)
 
 panel_w <- panel |>
@@ -300,8 +304,8 @@ panel_w <- panel |>
 n_unmatched <- sum(is.na(panel_w$weight))
 if (n_unmatched > 0) {
   warning(n_unmatched, " respondent(s) in panel have no matching weight ",
-          "in panel_weighting.rds -- check that weighting.R was run on the ",
-          "same panel_data.rds.")
+          "in study2_panel_weighting.rds -- check that study2_3_weighting.R was run on the ",
+          "same study2_panel_data.rds.")
 }
 
 itemized_w <- panel_w |>
@@ -464,7 +468,7 @@ resultat_pate_gt <- resultat_pate_full |>
       "SA = sample average (crude, unweighted trial counts).",
       "PA = population average (calibrated, weighted proportion);",
       "PATE = population average treatment effect (RR and RD): weights from",
-      "panel_weighting.rds (weighting.R), raked separately within each arm to",
+      "study2_panel_weighting.rds (study2_3_weighting.R), raked separately within each arm to",
       "national population margins for age group, gender, and education level",
       "(SSB); respondents with no population benchmark (missing demographics,",
       "or gender = Other/Prefer not to say) retain weight = 1.",

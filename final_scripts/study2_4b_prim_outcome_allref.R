@@ -1,17 +1,21 @@
+# STUDY 2 (new study, Nov 2026; raw data in data_nov26/). Outputs are prefixed study2_ (rds) and saved in results/study2/.
+# Files contain all who consented; only included participants (Included == "1") are randomised/analysed.
+# Do NOT mix with the previous-study scripts (study1_*).
+
 # Primary outcome, all reference arms
-## Same analysis as 4_prim_outcome.R, section 1-5 (SATE: relative risk of a
+## Same analysis as study2_4_prim_outcome.R, section 1-5 (SATE: relative risk of a
 ## correct comprehension answer out of 15, via log-binomial regression),
 ## repeated once per arm as the reference/control arm the other three are
 ## compared against. Produces 4 versions of Table 5, one per reference arm
 ## -- so every pairwise comparison between arms is available, not just the
-## 3 comparisons vs. V1_control that 4_prim_outcome.R's Table 3 covers.
-## The PATE (population-weighted) analysis (4_prim_outcome.R section 6
+## 3 comparisons vs. V1_control that study2_4_prim_outcome.R's Table 3 covers.
+## The PATE (population-weighted) analysis (study2_4_prim_outcome.R section 6
 ## onwards) is NOT repeated here -- this script only reruns the primary
 ## SATE RR/RD model.
 ##
 ## NOTE on multiplicity: each table below is still only Bonferroni-adjusted
 ## for the 3 comparisons vs. THAT table's reference arm, exactly as in
-## 4_prim_outcome.R. Looked at together, the 4 tables contain 12 rows but
+## study2_4_prim_outcome.R. Looked at together, the 4 tables contain 12 rows but
 ## only 6 unique arm pairs (each pair is estimated twice, once from each
 ## arm's side as reference) -- if we interpret results ACROSS the 4
 ## tables rather than reading one at a time, the effective number of
@@ -28,17 +32,17 @@ library(lmtest)
 library(gt)
 
 # -------------------------------------------------------------------------
-## Ensure to create a new folder and log by running 2_descreptive_analysis.R
-## before this script (same prerequisite as 4_prim_outcome.R, for results_dir).
+## Ensure to create a new folder and log by running study2_2_descreptive_analysis.R
+## before this script (same prerequisite as study2_4_prim_outcome.R, for results_dir).
 
 # -------------------------------------------------------------------------
 # 1. Code correct answers and build the outcome (successes / failures out of 15)
-#    -- identical to 4_prim_outcome.R section 1, but `arm` is left as plain
+#    -- identical to study2_4_prim_outcome.R section 1, but `arm` is left as plain
 #    factor here (not releveled yet); each reference arm is set inside the
 #    loop below instead.
 # -------------------------------------------------------------------------
 
-panel_base <- readRDS("panel_data.rds") |>
+panel_base <- readRDS("study2_panel_data.rds") |>
   # Dropout = all 15 outcome items missing (same definition as in 7_)
   filter(!is.na(primary_correct_count)) |>
   mutate(sc1_1 = if_else(scenario1_item1 %in% c("Likely", "Very likely"), 1, 0),
@@ -96,7 +100,7 @@ gtsave_safe <- function(data, path) {
 }
 
 ## Risk difference (RD), re-expressed from the RR -- identical to
-## 4_prim_outcome.R's delta_rd(): RD is a non-linear function of two
+## study2_4_prim_outcome.R's delta_rd(): RD is a non-linear function of two
 ## correlated model parameters (control-arm log-risk b0, log-RR b1), so a
 ## delta method propagates uncertainty in BOTH into the SE of RD.
 delta_rd <- function(coefs, Vmat, term_idx, ref_idx = 1) {
@@ -218,7 +222,7 @@ run_primary_vs_ref <- function(panel_base, ref_arm) {
     tab_footnote(
       footnote = paste(
         "This table is one of 4 reference-arm versions of Table 5 (see",
-        "4b_prim_outcome_allref.R); each is Bonferroni-adjusted only for its",
+        "study2_4b_prim_outcome_allref.R); each is Bonferroni-adjusted only for its",
         "own 3 comparisons -- reading multiple versions together implies",
         "more comparisons than any single table's correction accounts for."
       )

@@ -1,3 +1,7 @@
+# STUDY 2 (new study, Nov 2026; raw data in data_nov26/). Outputs are prefixed study2_ (rds) and saved in results/study2/.
+# Files contain all who consented; only included participants (Included == "1") are randomised/analysed.
+# Do NOT mix with the previous-study scripts (study1_*).
+
 ## 1. Organize data - updated 06/11/2026
 #-------------------------------------------------------------------------------
 ## Read the four BLINDED or UNBLINDED raw survey-export files (one per study arm,
@@ -38,7 +42,7 @@
 ##    therefore set to TRUE for everyone (same placeholder treatment
 ##    as attention_check_pass), and there is no "missing outcome data"
 ##    (dropout) row in this data at all. This means `n_allocated` per arm
-##    (needed for the CONSORT flow chart in descreptive_analysis.R) is NOT
+##    (needed for the CONSORT flow chart in study2_2_descreptive_analysis.R) is NOT
 ##    recoverable from these files and must come from the real
 ##    randomisation/enrolment log instead. In the new trial in November 2026,
 ##    the files contain everyone who consented, whether or not they completed
@@ -359,7 +363,7 @@ panel_data <- panel_data |>
   ))
 
 # All consenters (included and not included), for CONSORT reference
-saveRDS(panel_data, "panel_consented.rds")
+saveRDS(panel_data, "study2_panel_consented.rds")
 
 # Analysis dataset: only included participants (consent + completed baseline
 # + passed attention check), i.e. the randomised participants. Participants
@@ -370,10 +374,10 @@ stopifnot(all(as.integer(table(panel_data$arm)[arm_levels]) == n_allocated_by_ar
 panel_data |> count(arm)
 
 # Saved under the SAME filename the rest of the pipeline already expects
-saveRDS(panel_data, "panel_cc.rds")
-saveRDS(panel_data, "panel_data.rds")
+saveRDS(panel_data, "study2_panel_cc.rds")
+saveRDS(panel_data, "study2_panel_data.rds")
 
-# Per-arm counts for the CONSORT flow chart in 2_descreptive_analysis.R:
+# Per-arm counts for the CONSORT flow chart in study2_2_descreptive_analysis.R:
 # consented, and allocated (= included/randomised).
-saveRDS(n_allocated_by_arm, "panel_enrolment.rds")
-saveRDS(n_consented_by_arm, "panel_consented_by_arm.rds")
+saveRDS(n_allocated_by_arm, "study2_panel_enrolment.rds")
+saveRDS(n_consented_by_arm, "study2_panel_consented_by_arm.rds")

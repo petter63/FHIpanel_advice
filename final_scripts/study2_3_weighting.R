@@ -1,3 +1,7 @@
+# STUDY 2 (new study, Nov 2026; raw data in data_nov26/). Outputs are prefixed study2_ (rds) and saved in results/study2/.
+# Files contain all who consented; only included participants (Included == "1") are randomised/analysed.
+# Do NOT mix with the previous-study scripts (study1_*).
+
 # Post-stratification (raking) weights, computed SEPARATELY within each
 # randomised arm, targeting national population margins for
 # age x gender (joint) and education level (marginal).
@@ -44,7 +48,7 @@ library(gt)
 
 pop_dir <- "C:/Users/peel/OneDrive - Folkehelseinstituttet/Studier/Panel_smittevernraad"
 
-panel <- readRDS("panel_data.rds")
+panel <- readRDS("study2_panel_data.rds")
 
 ## ---- 1. Build population margins ------------------------------------------
 
@@ -218,7 +222,7 @@ panel_w <- panel_weighting |>
     .by = arm
   )
 
-saveRDS(panel_weighting, "panel_weighting.rds")
+saveRDS(panel_weighting, "study2_panel_weighting.rds")
 
 ## ---- 5. Figure: weight distribution by arm, before vs. after trimming ------
 
