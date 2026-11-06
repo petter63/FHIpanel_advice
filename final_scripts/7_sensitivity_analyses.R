@@ -1,8 +1,8 @@
 # Sensitivity analysis for the primary outcome: Manski (1990) worst-case /
 # best-case bounds for missing outcome data.
 ## ------------------------------------------------------------------------
-## The 140 dropouts (missing answer_time_ms -- no comprehension answers at
-## all; see simulate_panel_test.R) are simply excluded from the primary
+## The dropouts (included participants with all 15 comprehension items
+## missing) are the primary
 ## analysis (prim_outcome.R). Manski bounds instead ask: across EVERY
 ## logically possible way those unobserved answers could have come out,
 ## how far could the estimate move? For a single arm's proportion correct,
@@ -32,11 +32,12 @@ library(dplyr)
 library(tidyr)
 library(ggplot2)
 library(gt)
+library(sandwich)
 
 ## Ensure results_dir exists (created by descreptive_analysis.R, line
 ## ~18-41) before running this script.
 
-panel <- readRDS("panel_test.rds")
+panel <- readRDS("panel_data.rds")
 
 # Item-level correct/incorrect coding -- kept IDENTICAL to prim_outcome.R
 # (including the two protocol deviations for scenario 3 & 4, item 3) so
@@ -67,7 +68,10 @@ panel <- panel |>
     sc5_3 = if_else(scenario5_item3_normal %in% c("Very unlikely", "Unlikely"), 1, 0),
 
     arm             = relevel(factor(arm), ref = "V1_control"),
-    missing_outcome = is.na(answer_time_ms)
+    # Dropout = all 15 primary outcome items missing (primary_correct_count
+    # is NA, see 1_organize_data.R). The sc_* columns above can't be used for
+    # this: %in% turns NA answers into 0.
+    missing_outcome = is.na(primary_correct_count)
   )
 
 sc_cols <- c(
@@ -112,6 +116,15 @@ arm_bounds <- panel |>
   )
 
 arm_bounds
+
+if (sum(arm_bounds$n_missing) == 0) {
+  warning(
+    "No dropouts found (no participant has all 15 primary outcome items ",
+    "missing). Worst-case and best-case bounds are identical, so the Manski ",
+    "bounds collapse to point estimates.",
+    call. = FALSE
+  )
+}
 
 # -------------------------------------------------------------------------
 # 3. Traditional Manski bounds for the RR and RD vs. V1_control
@@ -221,25 +234,73 @@ gtsave_safe(manski_gt, file.path(results_dir, "table7_manski_bounds.html"))
 # -------------------------------------------------------------------------
 # 5. Figure: Manski RR bounds vs. RR = 1
 # -------------------------------------------------------------------------
-manski_plot_df <- manski |>
-  mutate(Comparison = factor(Comparison, levels = rev(Comparison)))
+# Main model for comparison: same log-binomial model as prim_outcome.R
+# (SA analysis, observed answers only), same dispersion rule for HC3 robust
+# SEs and the same Bonferroni-adjusted 95% CIs.
+main_data <- panel |>
+  filter(!missing_outcome) |>
+  mutate(scenario_fail = n_items - scenario_sum_observed)
 
-manski_plot <- ggplot(manski_plot_df, aes(y = Comparison)) +
+fit_main <- glm(
+  cbind(scenario_sum_observed, scenario_fail) ~ arm,
+  family = binomial(link = "log"),
+  data = main_data
+)
+dispersion_main <- sum(residuals(fit_main, type = "pearson")^2) / df.residual(fit_main)
+V_main    <- if (dispersion_main > 1.2) sandwich::vcovHC(fit_main, type = "HC3") else vcov(fit_main)
+beta_main <- coef(fit_main)[-1]
+se_main   <- sqrt(diag(V_main))[-1]
+z_main    <- qnorm(1 - (0.05 / length(beta_main)) / 2)
+
+main_rr <- tibble(
+  arm      = sub("^arm", "", names(beta_main)),
+  RR_main  = exp(beta_main),
+  CI_lower = exp(beta_main - z_main * se_main),
+  CI_upper = exp(beta_main + z_main * se_main)
+)
+main_rr
+
+# Numeric y positions so the Manski range and the main model sit side by side
+manski_plot_df <- manski |>
+  left_join(main_rr, by = "arm") |>
+  mutate(
+    y_pos  = rev(seq_along(Comparison)),
+    y_main = y_pos - 0.15,
+    y_man  = y_pos + 0.15
+  )
+
+manski_plot <- ggplot(manski_plot_df) +
   geom_vline(xintercept = 1, linetype = "dashed", colour = "grey40") +
-  geom_segment(aes(x = RR_lower, xend = RR_upper, yend = Comparison), linewidth = 1.1) +
-  geom_point(aes(x = RR_lower), shape = 17, size = 2.8) +
-  geom_point(aes(x = RR_upper), shape = 17, size = 2.8) +
+  geom_segment(
+    aes(x = RR_lower, xend = RR_upper, y = y_man, yend = y_man, colour = "Manski bounds"),
+    linewidth = 1.1
+  ) +
+  geom_point(aes(x = RR_lower, y = y_man, colour = "Manski bounds"), shape = 17, size = 2.8) +
+  geom_point(aes(x = RR_upper, y = y_man, colour = "Manski bounds"), shape = 17, size = 2.8) +
   geom_text(
-    aes(x = RR_lower, label = sprintf("%.2f", RR_lower)),
+    aes(x = RR_lower, y = y_man, label = sprintf("%.2f", RR_lower)),
     vjust = -1, size = 3.2
   ) +
   geom_text(
-    aes(x = RR_upper, label = sprintf("%.2f", RR_upper)),
+    aes(x = RR_upper, y = y_man, label = sprintf("%.2f", RR_upper)),
     vjust = -1, size = 3.2
+  ) +
+  geom_linerange(
+    aes(xmin = CI_lower, xmax = CI_upper, y = y_main, colour = "Main model (95% Bonferroni CI)"),
+    linewidth = 1.1
+  ) +
+  geom_point(
+    aes(x = RR_main, y = y_main, colour = "Main model (95% Bonferroni CI)"),
+    shape = 16, size = 2.8
+  ) +
+  scale_y_continuous(
+    breaks = manski_plot_df$y_pos, labels = manski_plot_df$Comparison,
+    expand = expansion(add = 0.6)
   ) +
   scale_x_log10() +
   labs(
-    x = "Relative risk, Manski worst case to best case (log scale)",
+    colour = NULL,
+    x = "Relative risk (log scale)",
     y = NULL,
     title = "Manski bounds for the primary-outcome RR vs. V1 (control)",
     subtitle = sprintf(
@@ -247,7 +308,8 @@ manski_plot <- ggplot(manski_plot_df, aes(y = Comparison)) +
       sum(arm_bounds$n_missing)
     )
   ) +
-  theme_minimal()
+  theme_minimal() +
+  theme(legend.position = "bottom")
 
 manski_plot
 
