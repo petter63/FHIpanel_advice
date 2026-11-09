@@ -9,23 +9,23 @@
 #   - RD (risk difference) via the delta method, pooled on the absolute scale
 #
 # Method: inverse-variance weighted meta-analysis of log RR (and RD).
-#   - Fixed-effect pooling is the main result. With only two studies the
-#     between-study variance (tau^2) cannot be estimated reliably, so the
-#     random-effects (DerSimonian-Laird) estimate is shown only as a
-#     sensitivity analysis and should be interpreted with great caution.
+#   - Fixed-effect pooling only. A random-effects model is not used: it needs
+#     at least three studies (two parameters, mean and between-study variance,
+#     are estimated), and only two studies are available.
 #   - Heterogeneity: Cochran's Q, I^2 (descriptive only with k = 2).
+#   - Output: the table (Table 8) is the reported result. The forest plot is
+#     for internal use only.
 #   - Pooled CIs and p values use the same Bonferroni adjustment as the
 #     single-study analyses (m = 3 comparisons vs. V1).
 #
 # Assumptions to be aware of:
 #   - V1-V4 are the same interventions in both studies, and arm labels refer to
-#     the real (unblinded) allocation in both. While the study 2 allocation is
-#     blinded, the pooled results are meaningless (see warning below).
+#     the real (unblinded) allocation in both. 
 #   - The two studies are independent (separate participants).
 #   - Study 1 and study 2 differ in inclusion handling (see the organize-data
 #     scripts); the estimates pooled here are from analysed participants only.
 #
-# Run study1_1 ... study1_4 and study2_1 ... study2_4 first.
+# Run study1_1 to study1_4 and study2_1 to study2_4 first.
 #-------------------------------------------------------------------------------
 
 library(dplyr)
@@ -34,7 +34,7 @@ library(purrr)
 library(ggplot2)
 library(gt)
 
-# Set to TRUE only once the study 2 allocation has been unblinded and the real
+# Set to TRUE once the study 2 allocation has been unblinded and the real
 # file -> arm mapping is used in study2_1_organize_data.R.
 study2_unblinded <- FALSE
 
@@ -92,19 +92,12 @@ pool_ivw <- function(y, se, m) {
   Q   <- sum(w * (y - fe)^2)
   df  <- k - 1
   I2  <- if (Q > 0) max(0, (Q - df) / Q) * 100 else 0
-  tau2 <- max(0, (Q - df) / (sum(w) - sum(w^2) / sum(w)))
-
-  w_re  <- 1 / (se^2 + tau2)
-  re    <- sum(w_re * y) / sum(w_re)
-  se_re <- sqrt(1 / sum(w_re))
 
   p_fe <- 2 * pnorm(abs(fe / se_fe), lower.tail = FALSE)
-  p_re <- 2 * pnorm(abs(re / se_re), lower.tail = FALSE)
 
   tibble(
     est_fe = fe, se_fe = se_fe, p_fe_bonf = min(1, p_fe * m),
-    est_re = re, se_re = se_re, p_re_bonf = min(1, p_re * m),
-    Q = Q, p_Q = pchisq(Q, df, lower.tail = FALSE), I2 = I2, tau2 = tau2
+    Q = Q, p_Q = pchisq(Q, df, lower.tail = FALSE), I2 = I2
   )
 }
 
@@ -147,8 +140,7 @@ meta_table <- pooled_rr |>
     `Pooled RD, pct. points (95% Bonferroni-adjusted CI)`  = fmt_rd(rd_fe, rd_se_fe),
     `Bonferroni-adjusted p value`                           = fmt_p(p_fe_bonf),
     `Q (p)`  = sprintf("%.2f (%.2f)", Q, p_Q),
-    `I2 (%)` = sprintf("%.0f", I2),
-    `Pooled RR, random effects (sensitivity)` = fmt_rr(est_re, se_re)
+    `I2 (%)` = sprintf("%.0f", I2)
   ) |>
   arrange(desc(estimand), term) |>
   select(
@@ -156,8 +148,7 @@ meta_table <- pooled_rr |>
     `Study 1 RR (95% CI)` = `Study 1`, `Study 2 RR (95% CI)` = `Study 2`,
     `Pooled RR, fixed effect (95% Bonferroni-adjusted CI)`,
     `Pooled RD, pct. points (95% Bonferroni-adjusted CI)`,
-    `Bonferroni-adjusted p value`, `Q (p)`, `I2 (%)`,
-    `Pooled RR, random effects (sensitivity)`
+    `Bonferroni-adjusted p value`, `Q (p)`, `I2 (%)`
   )
 
 meta_table
@@ -183,8 +174,7 @@ meta_gt <- meta_table |>
       "delta-method SE.",
       "Q = Cochran's Q, I2 = share of variability due to between-study heterogeneity;",
       "both are uninformative with only two studies.",
-      "The random-effects estimate (DerSimonian-Laird) is a sensitivity analysis only,",
-      "since the between-study variance cannot be estimated reliably from two studies."
+      "Fixed-effect pooling only; a random-effects model requires at least three studies."
     )
   ) |>
   tab_options(
@@ -204,7 +194,7 @@ gtsave_safe(meta_gt, file.path(results_dir, "table8_meta_analysis.rtf"))
 gtsave_safe(meta_gt, file.path(results_dir, "table8_meta_analysis.html"))
 
 # -------------------------------------------------------------------------
-# 4. Forest plot
+# 4. Forest plot (internal use only -- not saved; Table 8 is the reported result)
 # -------------------------------------------------------------------------
 row_levels <- c("Pooled (fixed effect)", "Study 2", "Study 1")
 
@@ -239,8 +229,3 @@ forest_plot <- ggplot(forest_df, aes(x = rr, y = row, shape = type)) +
   theme(strip.text.y = element_text(angle = 0, hjust = 0))
 
 forest_plot
-
-ggsave(
-  file.path(results_dir, "figure_meta_forest.png"),
-  forest_plot, width = 9, height = 6.5, dpi = 150, bg = "white"
-)
