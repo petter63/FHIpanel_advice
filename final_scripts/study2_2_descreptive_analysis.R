@@ -53,7 +53,7 @@ n_total <- nrow(panel)
 # Counts come from the raw files via study2_1_organize_data.R. The files contain
 # everyone who consented; those who did not complete baseline or did not pass
 # the attention check are excluded before randomisation.
-n_invited          <- 2160   # TODO: update for the new study
+n_invited          <- 4870   # updated for the new study
 n_consented_by_arm <- readRDS("study2_panel_consented_by_arm.rds")
 n_consented        <- sum(n_consented_by_arm)
 n_randomised       <- n_total                 # rows in panel = included

@@ -78,10 +78,10 @@ data_dir <- file.path("data_nov26")
 arm_levels <- c("V1_control", "V2_sentence", "V3_definitions", "V4_sentence_definitions")
 
 raw_files <- c(
-  W = file.path(data_dir, "Smittevern reslults_W.xlsx"),
-  X = file.path(data_dir, "Smittevern results_X.xlsx"),
-  Y = file.path(data_dir, "Smittevern results_Y.xlsx"),
-  Z = file.path(data_dir, "Smittevern results_Z.xlsx")
+  W = file.path(data_dir, "Smittevern_Samtykke høst 2026_combined_form_27.xlsx"),
+  X = file.path(data_dir, "Smittevern_Samtykke høst 2026_combined_form_28.xlsx"),
+  Y = file.path(data_dir, "Smittevern_Samtykke høst 2026_combined_form_29.xlsx"),
+  Z = file.path(data_dir, "Smittevern_Samtykke høst 2026_combined_form_30.xlsx")
 )
 
 # HISTORICAL -- retained to document how the arms were blinded while the
@@ -113,25 +113,52 @@ file_arm_map <- file_arm_map[names(raw_files)]  # keep W, X, Y, Z order
 stopifnot(setequal(file_arm_map, arm_levels))
 file_arm_map
 
-raw_list <- map(raw_files, ~ read_excel(.x, sheet = 1))
+# The exports are "combined forms": form 1 (consent, demographics, human check)
+# and form 2 (scenarios + outcomes), so $submission_id, $created,
+# $answer_time_ms and $forwarded_to_form occur twice. Repair to unique names
+# and keep the form-1 versions (present for every row).
+consent_col <- "Samtykker du til \u00e5 delta i denne unders\u00f8kelsen etter \u00e5 ha lest informasjonen ovenfor?"
+human_col   <- "For \u00e5 bekrefte at skjemaet besvares av et menneske, skriv FHI i svarfeltet nedenfor."
 
-# Normalise the per-file naming inconsistencies (see header note) to one
-# consistent column set before combining.
-raw_list$Y <- raw_list$Y |>
-  rename(
-    research_participation_experience = research_participant_experience,
-    Scenario_3.Careful                = Scenario_3.careful,
-    Scenario_3.Normal                 = Scenario_3.normal
-  )
+raw_list <- map(raw_files, function(path) {
+  read_excel(path, sheet = 1, .name_repair = "unique_quiet") |>
+    rename(
+      `$submission_id`   = `$submission_id...1`,
+      `$created`         = `$created...2`,
+      `$answer_time_ms`  = `$answer_time_ms...26`,
+      # Form-2 duplicates need non-"...N" names, or dplyr re-repairs the
+      # names later and clobbers the form-1 columns.
+      form2_submission_id  = `$submission_id...28`,
+      form2_created        = `$created...29`,
+      form2_answer_time_ms = `$answer_time_ms...67`,
+      form1_forwarded_to_form = `$forwarded_to_form...27`,
+      form2_forwarded_to_form = `$forwarded_to_form...68`
+    ) |>
+    # Normalise per-file naming inconsistencies (any_of: only renames what exists)
+    rename(any_of(c(
+      research_participation_experience = "research_participant_experience",
+      Scenario_3.Careful                = "Scenario_3.careful",
+      Scenario_3.Normal                 = "Scenario_3.normal"
+    )))
+})
 
-# The files contain everyone who consented, including those who did not
-# complete the baseline form or did not pass the attention check. The raw
-# "Included" column ("1" = consented + baseline completed + attention check
-# passed) is therefore required -- fail loudly if it is missing or has
-# unexpected codes rather than silently treating everyone as included.
-# TODO: confirm the column name/coding when the real files arrive.
-stopifnot(all(map_lgl(raw_list, ~ "Included" %in% names(.x))))
-stopifnot(all(map_lgl(raw_list, ~ all(.x$Included %in% c("0", "1")))))
+# Included is not in the export; derive it: consented + passed the human
+# check (typed "FHI", case-insensitive, whitespace trimmed). Non-consenters
+# are dropped (they have no data). Reaching form 2 is NOT required: those who
+# drop out after baseline stay included with missing outcomes.
+stopifnot(all(map_lgl(raw_list, ~ all(c(consent_col, human_col, "SUBMISSION_REFERENCE") %in% names(.x)))))
+stopifnot(all(map_lgl(raw_list, ~ all(grepl("^(Ja|Nei),", .x[[consent_col]])))))
+
+raw_list <- map(raw_list, function(df) {
+  df |>
+    filter(startsWith(.data[[consent_col]], "Ja")) |>
+    mutate(Included = if_else(
+      toupper(trimws(replace_na(.data[[human_col]], ""))) == "FHI", "1", "0"
+    ))
+})
+
+# After renaming, column sets must be identical across files
+stopifnot(all(map_lgl(raw_list, ~ setequal(names(.x), names(raw_list[[1]])))))
 
 panel_data <- imap(raw_list, function(df, file_label) {
   mutate(df, arm = file_arm_map[[file_label]])
@@ -303,7 +330,7 @@ panel_data <- panel_data |>
     submitted_at   = `$created`,
     answer_time_ms = `$answer_time_ms`,
 
-    # Consent + completed baseline + passed attention check.
+    # Consent + passed human check (derived above).
     included = Included == "1",
 
     gender    = decode(Gender, gender_labels),
@@ -347,8 +374,8 @@ panel_data <- panel_data |>
     perceived_usefulness = decode(Seek_info, agreement_labels, ordered = TRUE),
     intention_to_share   = decode(Share_info, agreement_labels, ordered = TRUE),
 
-    # No separate attention-check item is used here; `included` already
-    # encodes it. Replace with the raw item if the new export has one.
+    # The human check (typed "FHI") is the only attention check; `included`
+    # already encodes it.
     attention_check_pass = Included == "1"
   ) |>
   bind_cols(scenario_items) |>
